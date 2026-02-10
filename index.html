@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAZARD STC - Payroll Management System</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0c1220;--surface:#141c2e;--card:#1a2540;--border:#253354;
+--primary:#3b82f6;--primary-glow:rgba(59,130,246,.15);
+--accent:#f59e0b;--accent2:#10b981;--danger:#ef4444;
+--text:#e2e8f0;--text-dim:#94a3b8;--text-muted:#64748b;
+--gold:#f59e0b;--green:#10b981;--red:#ef4444;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app{display:flex;min-height:100vh}
+
+/* Sidebar */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);padding:1rem 0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sidebar-brand{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);margin-bottom:.5rem}
+.sidebar-brand h1{font-size:.85rem;font-weight:700;color:var(--accent);letter-spacing:2px;text-transform:uppercase}
+.sidebar-brand p{font-size:.7rem;color:var(--text-dim);margin-top:.25rem;letter-spacing:.5px}
+.sidebar-nav{flex:1;padding:.5rem}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:8px;cursor:pointer;color:var(--text-dim);font-size:.85rem;font-weight:500;transition:all .2s;margin-bottom:2px}
+.nav-item:hover{background:var(--primary-glow);color:var(--text)}
+.nav-item.active{background:var(--primary);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.nav-item .icon{font-size:1.1rem;width:20px;text-align:center}
+.sidebar-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);font-size:.7rem;color:var(--text-muted)}
+
+/* Main Content */
+.main{margin-left:240px;flex:1;padding:1.5rem 2rem}
+.page{display:none}
+.page.active{display:block}
+
+/* Header Bar */
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
+.page-header h2{font-size:1.35rem;font-weight:700;color:var(--text)}
+.page-header .subtitle{font-size:.8rem;color:var(--text-dim);margin-top:.15rem}
+
+/* Cards */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat-card.blue::before{background:var(--primary)}
+.stat-card.gold::before{background:var(--gold)}
+.stat-card.green::before{background:var(--green)}
+.stat-card.red::before{background:var(--red)}
+.stat-card .label{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.stat-card .value{font-size:1.5rem;font-weight:700;margin-top:.35rem;font-family:'JetBrains Mono',monospace}
+.stat-card .sub{font-size:.7rem;color:var(--text-dim);margin-top:.25rem}
+
+/* Panels */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:1.5rem;overflow:hidden}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.panel-head h3{font-size:.95rem;font-weight:600}
+.panel-body{padding:1.25rem}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border:none;border-radius:6px;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:#2563eb;box-shadow:0 4px 12px rgba(59,130,246,.3)}
+.btn-success{background:var(--green);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-warning{background:var(--gold);color:#000}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-dim)}
+.btn-ghost:hover{border-color:var(--primary);color:var(--primary)}
+.btn-sm{padding:.35rem .75rem;font-size:.75rem}
+.btn-group{display:flex;gap:.5rem;flex-wrap:wrap}
+
+/* Tables */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:.65rem .75rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2);white-space:nowrap}
+td{padding:.6rem .75rem;font-size:.82rem;border-bottom:1px solid rgba(37,51,84,.5);white-space:nowrap}
+tr:hover td{background:rgba(59,130,246,.04)}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.78rem}
+.text-right{text-align:right}
+.text-center{text-align:center}
+.tag{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600}
+.tag-ft{background:rgba(59,130,246,.15);color:#60a5fa}
+.tag-pt{background:rgba(245,158,11,.15);color:#fbbf24}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+.form-group{display:flex;flex-direction:column;gap:.3rem}
+.form-group label{font-size:.75rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.3px}
+.form-group input,.form-group select,.form-group textarea{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.55rem .75rem;color:var(--text);font-family:inherit;font-size:.85rem}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.form-group input[type="number"]{font-family:'JetBrains Mono',monospace}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:14px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)}
+.modal-header h3{font-size:1rem;font-weight:600}
+.modal-close{background:none;border:none;color:var(--text-dim);font-size:1.3rem;cursor:pointer}
+.modal-body{padding:1.5rem}
+.modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:.5rem;justify-content:flex-end}
+
+/* Payslip Print */
+.payslip-container{display:none}
+@media print{
+  body *{visibility:hidden}
+  .payslip-container,.payslip-container *{visibility:visible!important}
+  .payslip-container{display:block!important;position:fixed;top:0;left:0;width:100%;background:#fff;z-index:9999;padding:2rem}
+}
+.payslip-print{background:#fff;color:#000;padding:2rem;max-width:700px;margin:0 auto;font-family:'DM Sans',sans-serif}
+.payslip-print .ps-header{text-align:center;border-bottom:3px solid #1a2540;padding-bottom:1rem;margin-bottom:1.5rem}
+.payslip-print .ps-header h2{font-size:1.1rem;color:#1a2540;letter-spacing:2px}
+.payslip-print .ps-header p{font-size:.8rem;color:#666;margin-top:.25rem}
+.payslip-print .ps-info{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1.5rem;font-size:.82rem}
+.payslip-print .ps-info .row{display:flex;gap:.5rem}
+.payslip-print .ps-info .lbl{font-weight:700;color:#333;min-width:110px}
+.payslip-print .ps-info .val{color:#555}
+.payslip-print .ps-table{width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+.payslip-print .ps-table th{background:#1a2540;color:#fff;padding:.5rem .75rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+.payslip-print .ps-table td{padding:.45rem .75rem;border-bottom:1px solid #e5e7eb;font-size:.82rem}
+.payslip-print .ps-table .amt{font-family:'JetBrains Mono',monospace;text-align:right;font-size:.8rem}
+.payslip-print .ps-totals{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:1.5rem;padding-top:1rem;border-top:2px solid #1a2540}
+.payslip-print .ps-totals .box{text-align:center;padding:.75rem;border:1px solid #e5e7eb;border-radius:6px}
+.payslip-print .ps-totals .box .lbl{font-size:.7rem;color:#666;text-transform:uppercase;font-weight:600}
+.payslip-print .ps-totals .box .val{font-size:1.1rem;font-weight:700;color:#1a2540;font-family:'JetBrains Mono',monospace;margin-top:.25rem}
+.payslip-print .ps-footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;font-size:.7rem;color:#999;text-align:center}
+
+/* Payslip Preview (on screen) */
+.payslip-preview{background:#fff;color:#000;padding:2rem;border-radius:10px;max-width:700px;margin:1rem auto}
+.payslip-preview .ps-header{text-align:center;border-bottom:3px solid #1a2540;padding-bottom:1rem;margin-bottom:1.5rem}
+.payslip-preview .ps-header h2{font-size:1.1rem;color:#1a2540;letter-spacing:2px}
+.payslip-preview .ps-header p{font-size:.8rem;color:#666;margin-top:.25rem}
+.payslip-preview .ps-info{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1.5rem;font-size:.82rem}
+.payslip-preview .ps-info .row{display:flex;gap:.5rem}
+.payslip-preview .ps-info .lbl{font-weight:700;color:#333;min-width:110px}
+.payslip-preview .ps-info .val{color:#555}
+.payslip-preview .ps-table{width:100%;border-collapse:collapse;margin-bottom:1.5rem}
+.payslip-preview .ps-table th{background:#1a2540;color:#fff;padding:.5rem .75rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+.payslip-preview .ps-table td{padding:.45rem .75rem;border-bottom:1px solid #e5e7eb;font-size:.82rem}
+.payslip-preview .ps-table .amt{font-family:'JetBrains Mono',monospace;text-align:right;font-size:.8rem}
+.payslip-preview .ps-totals{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:1.5rem;padding-top:1rem;border-top:2px solid #1a2540}
+.payslip-preview .ps-totals .box{text-align:center;padding:.75rem;border:1px solid #e5e7eb;border-radius:6px}
+.payslip-preview .ps-totals .box .lbl{font-size:.7rem;color:#666;text-transform:uppercase;font-weight:600}
+.payslip-preview .ps-totals .box .val{font-size:1.1rem;font-weight:700;color:#1a2540;font-family:'JetBrains Mono',monospace;margin-top:.25rem}
+.payslip-preview .ps-footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;font-size:.7rem;color:#999;text-align:center}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{width:60px}
+  .sidebar .nav-text,.sidebar-brand p,.sidebar-footer{display:none}
+  .sidebar-brand h1{font-size:.6rem;text-align:center}
+  .main{margin-left:60px;padding:1rem}
+  .nav-item{justify-content:center;padding:.75rem}
+  .stats-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h1>HAZARD STC</h1>
+      <p>Payroll System</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">📊</span><span class="nav-text">Dashboard</span></div>
+      <div class="nav-item" onclick="showPage('employees')"><span class="icon">👥</span><span class="nav-text">Employees</span></div>
+      <div class="nav-item" onclick="showPage('payroll')"><span class="icon">💰</span><span class="nav-text">Run Payroll</span></div>
+      <div class="nav-item" onclick="showPage('payslips')"><span class="icon">🧾</span><span class="nav-text">Payslips</span></div>
+      <div class="nav-item" onclick="showPage('deductions')"><span class="icon">📋</span><span class="nav-text">Tax Summary</span></div>
+      <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
+    </nav>
+    <div class="sidebar-footer">HEART/NSTA Trust<br>Community Training</div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div><h2>Payroll Dashboard</h2><div class="subtitle">Hazard Skills Training Centre — Overview</div></div>
+        <div class="btn-group">
+          <button class="btn btn-ghost" onclick="exportAllData()">📥 Export Data</button>
+          <button class="btn btn-primary" onclick="showPage('payroll')">▶ Run Payroll</button>
+        </div>
+      </div>
+      <div class="stats-row" id="dashStats"></div>
+      <div class="panel">
+        <div class="panel-head"><h3>Recent Payroll History</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="dashHistory"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Employee Summary</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="dashEmployees"></div></div>
+      </div>
+    </div>
+
+    <!-- ===== EMPLOYEES ===== -->
+    <div id="page-employees" class="page">
+      <div class="page-header">
+        <div><h2>Employee Management</h2><div class="subtitle">Full-Time & Part-Time Staff Records</div></div>
+        <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>All Employees</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="employeeTable"></div></div>
+      </div>
+    </div>
+
+    <!-- ===== PAYROLL ===== -->
+    <div id="page-payroll" class="page">
+      <div class="page-header">
+        <div><h2>Process Payroll</h2><div class="subtitle">Calculate deductions and generate payslips</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Payroll Configuration</h3></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Pay Cycle Date</label>
+              <input type="date" id="payCycleDate">
+            </div>
+            <div class="form-group">
+              <label>Income Tax Threshold (Annual)</label>
+              <input type="number" id="taxThreshold" value="1500096" step="1">
+            </div>
+          </div>
+          <div style="margin-top:1.25rem">
+            <h4 style="font-size:.85rem;margin-bottom:.75rem;color:var(--text-dim)">Employee Gross Earnings for this Cycle</h4>
+            <div class="table-wrap" id="payrollInput"></div>
+          </div>
+          <div style="margin-top:1.25rem;display:flex;gap:.75rem">
+            <button class="btn btn-success" onclick="calculatePayroll()">🧮 Calculate Payroll</button>
+            <button class="btn btn-ghost" onclick="fillDefaultSalaries()">📋 Fill Default Salaries</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel" id="payrollResultsPanel" style="display:none">
+        <div class="panel-head"><h3>Payroll Results</h3><button class="btn btn-primary btn-sm" onclick="savePayrollRun()">💾 Save & Lock Payroll</button></div>
+        <div class="panel-body"><div class="table-wrap" id="payrollResults"></div></div>
+      </div>
+    </div>
+
+    <!-- ===== PAYSLIPS ===== -->
+    <div id="page-payslips" class="page">
+      <div class="page-header">
+        <div><h2>Payslip Generator</h2><div class="subtitle">View, preview and print individual payslips</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Select Employee & Pay Cycle</h3></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Employee</label>
+              <select id="payslipEmployee"></select>
+            </div>
+            <div class="form-group">
+              <label>Pay Cycle</label>
+              <select id="payslipCycle"></select>
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <button class="btn btn-primary" onclick="generatePayslipPreview()">👁 Preview Payslip</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="payslipPreviewArea"></div>
+      <div class="payslip-container" id="payslipPrintArea"></div>
+    </div>
+
+    <!-- ===== TAX SUMMARY ===== -->
+    <div id="page-deductions" class="page">
+      <div class="page-header">
+        <div><h2>Tax Deductions Summary</h2><div class="subtitle">Statutory contributions by pay cycle</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Monthly Contribution Totals</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="taxSummaryTable"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Per-Employee Breakdown</h3></div>
+        <div class="panel-body">
+          <div class="form-group" style="max-width:300px;margin-bottom:1rem">
+            <label>Select Pay Cycle</label>
+            <select id="taxCycleSelect" onchange="renderTaxBreakdown()"></select>
+          </div>
+          <div class="table-wrap" id="taxBreakdownTable"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <div><h2>Settings</h2><div class="subtitle">Tax rates and system configuration</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Jamaican Statutory Deduction Rates</h3></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-group"><label>NIS Employee Rate (%)</label><input type="number" id="rateNISEmp" value="3" step="0.1"></div>
+            <div class="form-group"><label>NIS Employer Rate (%)</label><input type="number" id="rateNISEr" value="3" step="0.1"></div>
+            <div class="form-group"><label>Education Tax Employee (%)</label><input type="number" id="rateEdTaxEmp" value="2.25" step="0.01"></div>
+            <div class="form-group"><label>Education Tax Employer (%)</label><input type="number" id="rateEdTaxEr" value="3.5" step="0.01"></div>
+            <div class="form-group"><label>NHT Employee (%)</label><input type="number" id="rateNHTEmp" value="2" step="0.1"></div>
+            <div class="form-group"><label>NHT Employer (%)</label><input type="number" id="rateNHTEr" value="3" step="0.1"></div>
+            <div class="form-group"><label>Income Tax Rate (%)</label><input type="number" id="rateIncomeTax" value="25" step="0.1"></div>
+            <div class="form-group"><label>Annual Income Tax Threshold ($)</label><input type="number" id="annualThreshold" value="1500096" step="1"></div>
+          </div>
+          <div style="margin-top:1.25rem;display:flex;gap:.75rem">
+            <button class="btn btn-success" onclick="saveSettings()">💾 Save Settings</button>
+            <button class="btn btn-danger" onclick="if(confirm('Reset ALL data?')){localStorage.clear();location.reload()}">🗑 Reset All Data</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Data Management</h3></div>
+        <div class="panel-body">
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="loadPresetData()">📦 Load Preset Employee Data</button>
+            <button class="btn btn-ghost" onclick="exportAllData()">📥 Export JSON Backup</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">📤 Import JSON Backup</button>
+            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Employee Modal -->
+<div class="modal-overlay" id="employeeModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="empModalTitle">Add Employee</h3><button class="modal-close" onclick="closeEmployeeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>Employee Name</label><input type="text" id="empName"></div>
+        <div class="form-group"><label>Designation</label><input type="text" id="empDesignation"></div>
+        <div class="form-group"><label>Type</label><select id="empType"><option value="FT">Full-Time</option><option value="PT">Part-Time</option></select></div>
+        <div class="form-group"><label>Mobile No.</label><input type="text" id="empMobile"></div>
+        <div class="form-group"><label>Date of Birth</label><input type="date" id="empDOB"></div>
+        <div class="form-group"><label>TRN</label><input type="text" id="empTRN"></div>
+        <div class="form-group"><label>NIS Number</label><input type="text" id="empNIS"></div>
+        <div class="form-group"><label>Start Date</label><input type="date" id="empStart"></div>
+        <div class="form-group"><label>Monthly Gross Salary ($)</label><input type="number" id="empSalary" step="0.01"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEmployeeModal()">Cancel</button>
+      <button class="btn btn-success" onclick="saveEmployee()">Save Employee</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== DATA STORE ====================
+const STORAGE_KEY = 'hazardPayroll';
+let DATA = loadStore();
+
+function defaultData(){
+  return {
+    settings:{nisEmp:3,nisEr:3,edTaxEmp:2.25,edTaxEr:3.5,nhtEmp:2,nhtEr:3,incomeTax:25,annualThreshold:1500096},
+    employees:[],
+    payrollRuns:[]
+  };
+}
+
+function loadStore(){
+  try{const d=localStorage.getItem(STORAGE_KEY);return d?JSON.parse(d):defaultData();}catch(e){return defaultData();}
+}
+function saveStore(){localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));}
+
+// ==================== FORMATTING ====================
+function fmt(n){return '$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtDate(d){if(!d)return'—';const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+
+// ==================== NAVIGATION ====================
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const navItems=document.querySelectorAll('.nav-item');
+  const pages=['dashboard','employees','payroll','payslips','deductions','settings'];
+  const idx=pages.indexOf(name);
+  if(idx>=0)navItems[idx].classList.add('active');
+  if(name==='dashboard')renderDashboard();
+  if(name==='employees')renderEmployees();
+  if(name==='payroll')renderPayrollInput();
+  if(name==='payslips')populatePayslipSelects();
+  if(name==='deductions')renderTaxSummary();
+  if(name==='settings')loadSettings();
+}
+
+// ==================== DASHBOARD ====================
+function renderDashboard(){
+  const emps=DATA.employees;
+  const runs=DATA.payrollRuns;
+  const ftCount=emps.filter(e=>e.type==='FT').length;
+  const ptCount=emps.filter(e=>e.type==='PT').length;
+  const lastRun=runs.length>0?runs[runs.length-1]:null;
+  const totalGross=lastRun?lastRun.results.reduce((s,r)=>s+r.gross,0):0;
+  const totalNet=lastRun?lastRun.results.reduce((s,r)=>s+r.netPay,0):0;
+
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat-card blue"><div class="label">Total Employees</div><div class="value">${emps.length}</div><div class="sub">${ftCount} Full-Time · ${ptCount} Part-Time</div></div>
+    <div class="stat-card gold"><div class="label">Last Gross Payroll</div><div class="value mono">${fmt(totalGross)}</div><div class="sub">${lastRun?fmtDate(lastRun.date):'No runs yet'}</div></div>
+    <div class="stat-card green"><div class="label">Last Net Payroll</div><div class="value mono">${fmt(totalNet)}</div><div class="sub">After all deductions</div></div>
+    <div class="stat-card red"><div class="label">Payroll Runs</div><div class="value">${runs.length}</div><div class="sub">Total processed cycles</div></div>
+  `;
+
+  let histHtml='<table><thead><tr><th>Pay Date</th><th class="text-right">Gross</th><th class="text-right">Net</th><th class="text-right">Emp Deductions</th><th class="text-right">Er Contributions</th><th>Employees</th></tr></thead><tbody>';
+  if(runs.length===0)histHtml+='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">No payroll runs yet</td></tr>';
+  else runs.slice().reverse().forEach(r=>{
+    const g=r.results.reduce((s,x)=>s+x.gross,0);
+    const n=r.results.reduce((s,x)=>s+x.netPay,0);
+    const ed=r.results.reduce((s,x)=>s+x.totalEmpDeductions,0);
+    const er=r.results.reduce((s,x)=>s+x.totalErContributions,0);
+    histHtml+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(g)}</td><td class="mono text-right">${fmt(n)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(er)}</td><td>${r.results.length}</td></tr>`;
+  });
+  histHtml+='</tbody></table>';
+  document.getElementById('dashHistory').innerHTML=histHtml;
+
+  let empHtml='<table><thead><tr><th>#</th><th>Name</th><th>Designation</th><th>Type</th><th>TRN</th><th>NIS</th></tr></thead><tbody>';
+  emps.forEach((e,i)=>{
+    empHtml+=`<tr><td>${i+1}</td><td>${e.name}</td><td>${e.designation}</td><td><span class="tag ${e.type==='FT'?'tag-ft':'tag-pt'}">${e.type}</span></td><td class="mono">${e.trn||'—'}</td><td class="mono">${e.nis||'—'}</td></tr>`;
+  });
+  if(emps.length===0)empHtml+='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">No employees. Add some from Settings → Load Preset Data</td></tr>';
+  empHtml+='</tbody></table>';
+  document.getElementById('dashEmployees').innerHTML=empHtml;
+}
+
+// ==================== EMPLOYEES ====================
+let editingEmpIdx=-1;
+
+function renderEmployees(){
+  let html='<table><thead><tr><th>#</th><th>Name</th><th>Designation</th><th>Type</th><th>Mobile</th><th>DOB</th><th>TRN</th><th>NIS</th><th>Salary</th><th>Start</th><th>Actions</th></tr></thead><tbody>';
+  DATA.employees.forEach((e,i)=>{
+    html+=`<tr>
+      <td>${i+1}</td><td>${e.name}</td><td>${e.designation||'—'}</td>
+      <td><span class="tag ${e.type==='FT'?'tag-ft':'tag-pt'}">${e.type}</span></td>
+      <td class="mono">${e.mobile||'—'}</td><td>${fmtDate(e.dob)}</td>
+      <td class="mono">${e.trn||'—'}</td><td class="mono">${e.nis||'—'}</td>
+      <td class="mono text-right">${fmt(e.salary)}</td><td>${fmtDate(e.startDate)}</td>
+      <td><div class="btn-group"><button class="btn btn-ghost btn-sm" onclick="editEmployee(${i})">✏️</button><button class="btn btn-danger btn-sm" onclick="deleteEmployee(${i})">🗑</button></div></td>
+    </tr>`;
+  });
+  if(DATA.employees.length===0)html+='<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">No employees added yet</td></tr>';
+  html+='</tbody></table>';
+  document.getElementById('employeeTable').innerHTML=html;
+}
+
+function openEmployeeModal(){
+  editingEmpIdx=-1;
+  document.getElementById('empModalTitle').textContent='Add Employee';
+  ['empName','empDesignation','empMobile','empDOB','empTRN','empNIS','empStart','empSalary'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('empType').value='FT';
+  document.getElementById('employeeModal').classList.add('show');
+}
+
+function closeEmployeeModal(){document.getElementById('employeeModal').classList.remove('show');}
+
+function editEmployee(i){
+  editingEmpIdx=i;const e=DATA.employees[i];
+  document.getElementById('empModalTitle').textContent='Edit Employee';
+  document.getElementById('empName').value=e.name;
+  document.getElementById('empDesignation').value=e.designation||'';
+  document.getElementById('empType').value=e.type;
+  document.getElementById('empMobile').value=e.mobile||'';
+  document.getElementById('empDOB').value=e.dob||'';
+  document.getElementById('empTRN').value=e.trn||'';
+  document.getElementById('empNIS').value=e.nis||'';
+  document.getElementById('empStart').value=e.startDate||'';
+  document.getElementById('empSalary').value=e.salary||'';
+  document.getElementById('employeeModal').classList.add('show');
+}
+
+function saveEmployee(){
+  const emp={
+    name:document.getElementById('empName').value.trim(),
+    designation:document.getElementById('empDesignation').value.trim(),
+    type:document.getElementById('empType').value,
+    mobile:document.getElementById('empMobile').value.trim(),
+    dob:document.getElementById('empDOB').value,
+    trn:document.getElementById('empTRN').value.trim(),
+    nis:document.getElementById('empNIS').value.trim(),
+    startDate:document.getElementById('empStart').value,
+    salary:parseFloat(document.getElementById('empSalary').value)||0
+  };
+  if(!emp.name){alert('Employee name is required');return;}
+  if(editingEmpIdx>=0)DATA.employees[editingEmpIdx]=emp;
+  else DATA.employees.push(emp);
+  saveStore();closeEmployeeModal();renderEmployees();
+}
+
+function deleteEmployee(i){
+  if(!confirm('Delete '+DATA.employees[i].name+'?'))return;
+  DATA.employees.splice(i,1);saveStore();renderEmployees();
+}
+
+// ==================== PAYROLL PROCESSING ====================
+function renderPayrollInput(){
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('payCycleDate').value=today;
+  document.getElementById('taxThreshold').value=DATA.settings.annualThreshold;
+
+  let html='<table><thead><tr><th>#</th><th>Employee</th><th>Type</th><th>Default Salary</th><th>Gross Earnings This Cycle ($)</th></tr></thead><tbody>';
+  DATA.employees.forEach((e,i)=>{
+    html+=`<tr><td>${i+1}</td><td>${e.name}</td><td><span class="tag ${e.type==='FT'?'tag-ft':'tag-pt'}">${e.type}</span></td><td class="mono text-right">${fmt(e.salary)}</td><td><input type="number" step="0.01" id="grossInput_${i}" value="0" style="width:160px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.4rem .6rem;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.82rem"></td></tr>`;
+  });
+  if(DATA.employees.length===0)html+='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem">Add employees first</td></tr>';
+  html+='</tbody></table>';
+  document.getElementById('payrollInput').innerHTML=html;
+  document.getElementById('payrollResultsPanel').style.display='none';
+}
+
+function fillDefaultSalaries(){
+  DATA.employees.forEach((e,i)=>{
+    const inp=document.getElementById('grossInput_'+i);
+    if(inp)inp.value=e.salary||0;
+  });
+}
+
+function calculatePayroll(){
+  const s=DATA.settings;
+  const monthlyThreshold=s.annualThreshold/12;
+  const results=[];
+
+  DATA.employees.forEach((e,i)=>{
+    const gross=parseFloat(document.getElementById('grossInput_'+i)?.value)||0;
+    const nisEmp=gross*(s.nisEmp/100);
+    const nisEr=gross*(s.nisEr/100);
+    const edTaxEmp=gross*(s.edTaxEmp/100);
+    const edTaxEr=gross*(s.edTaxEr/100);
+    const nhtEmp=gross*(s.nhtEmp/100);
+    const nhtEr=gross*(s.nhtEr/100);
+    const taxableIncome=gross-nisEmp-nhtEmp;
+    const incomeTax=taxableIncome>(monthlyThreshold)?(taxableIncome-monthlyThreshold)*(s.incomeTax/100):0;
+    const totalEmpDeductions=nisEmp+edTaxEmp+nhtEmp+incomeTax;
+    const totalErContributions=nisEr+edTaxEr+nhtEr;
+    const netPay=gross-totalEmpDeductions;
+
+    results.push({
+      empName:e.name,empType:e.type,designation:e.designation,trn:e.trn,nis:e.nis,
+      gross,nisEmp,nisEr,edTaxEmp,edTaxEr,nhtEmp,nhtEr,incomeTax,
+      totalEmpDeductions,totalErContributions,netPay
+    });
+  });
+
+  // Display results
+  let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th></tr></thead><tbody>';
+  let totals={gross:0,nis:0,ed:0,it:0,nht:0,ded:0,net:0};
+  results.forEach(r=>{
+    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td></tr>`;
+    totals.gross+=r.gross;totals.nis+=r.nisEmp;totals.ed+=r.edTaxEmp;totals.it+=r.incomeTax;totals.nht+=r.nhtEmp;totals.ded+=r.totalEmpDeductions;totals.net+=r.netPay;
+  });
+  html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('payrollResults').innerHTML=html;
+  document.getElementById('payrollResultsPanel').style.display='block';
+  window._pendingPayroll={date:document.getElementById('payCycleDate').value,results};
+}
+
+function savePayrollRun(){
+  if(!window._pendingPayroll){alert('Calculate payroll first');return;}
+  DATA.payrollRuns.push(window._pendingPayroll);
+  saveStore();
+  window._pendingPayroll=null;
+  alert('Payroll saved successfully!');
+  showPage('dashboard');
+}
+
+// ==================== PAYSLIPS ====================
+function populatePayslipSelects(){
+  const empSel=document.getElementById('payslipEmployee');
+  const cycSel=document.getElementById('payslipCycle');
+  empSel.innerHTML='<option value="">— Select —</option>';
+  DATA.employees.forEach((e,i)=>{empSel.innerHTML+=`<option value="${i}">${e.name} (${e.type})</option>`;});
+  cycSel.innerHTML='<option value="">— Select —</option>';
+  DATA.payrollRuns.forEach((r,i)=>{cycSel.innerHTML+=`<option value="${i}">${fmtDate(r.date)}</option>`;});
+}
+
+function generatePayslipPreview(){
+  const empIdx=parseInt(document.getElementById('payslipEmployee').value);
+  const cycIdx=parseInt(document.getElementById('payslipCycle').value);
+  if(isNaN(empIdx)||isNaN(cycIdx)){alert('Select both employee and pay cycle');return;}
+  const emp=DATA.employees[empIdx];
+  const run=DATA.payrollRuns[cycIdx];
+  const result=run.results.find(r=>r.empName===emp.name);
+  if(!result){alert('No payroll data found for this employee in selected cycle');return;}
+
+  // Calculate YTD
+  let ytd={nis:0,edTax:0,nht:0,incomeTax:0,gross:0};
+  DATA.payrollRuns.forEach((r,ri)=>{
+    if(ri>cycIdx)return;
+    const match=r.results.find(x=>x.empName===emp.name);
+    if(match){ytd.nis+=match.nisEmp;ytd.edTax+=match.edTaxEmp;ytd.nht+=match.nhtEmp;ytd.incomeTax+=match.incomeTax;ytd.gross+=match.gross;}
+  });
+
+  const psHtml=buildPayslipHTML(emp,result,run.date,ytd);
+  document.getElementById('payslipPreviewArea').innerHTML=`
+    <div class="panel" style="margin-top:1rem">
+      <div class="panel-head"><h3>Payslip Preview</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printPayslip()">🖨 Print / Save as PDF</button></div></div>
+      <div class="panel-body">${psHtml}</div>
+    </div>`;
+  document.getElementById('payslipPrintArea').innerHTML=psHtml.replace('payslip-preview','payslip-print');
+}
+
+function buildPayslipHTML(emp,result,date,ytd){
+  return `<div class="payslip-preview">
+    <div class="ps-header">
+      <h2>HAZARD SKILLS TRAINING CENTRE</h2>
+      <p>HEART/NSTA Trust — Community Training Interventions</p>
+      <p style="font-weight:600;margin-top:.5rem">EMPLOYEE PAY ADVICE SLIP</p>
+    </div>
+    <div class="ps-info">
+      <div class="row"><span class="lbl">Employee Name:</span><span class="val">${result.empName}</span></div>
+      <div class="row"><span class="lbl">Pay Cycle:</span><span class="val">${fmtDate(date)}</span></div>
+      <div class="row"><span class="lbl">TRN:</span><span class="val">${result.trn||'—'}</span></div>
+      <div class="row"><span class="lbl">NIS #:</span><span class="val">${result.nis||'—'}</span></div>
+      <div class="row"><span class="lbl">Position:</span><span class="val">${result.designation||'—'}</span></div>
+      <div class="row"><span class="lbl">Type:</span><span class="val">${result.empType==='FT'?'Full-Time':'Part-Time'}</span></div>
+    </div>
+    <table class="ps-table">
+      <thead><tr><th>Description</th><th style="text-align:right">Employee</th><th style="text-align:right">Employer</th><th style="text-align:right">Year-to-Date</th></tr></thead>
+      <tbody>
+        <tr><td>NIS</td><td class="amt">${fmt(result.nisEmp)}</td><td class="amt">${fmt(result.nisEr)}</td><td class="amt">${fmt(ytd.nis)}</td></tr>
+        <tr><td>Income Tax</td><td class="amt">${fmt(result.incomeTax)}</td><td class="amt">—</td><td class="amt">${fmt(ytd.incomeTax)}</td></tr>
+        <tr><td>Education Tax</td><td class="amt">${fmt(result.edTaxEmp)}</td><td class="amt">${fmt(result.edTaxEr)}</td><td class="amt">${fmt(ytd.edTax)}</td></tr>
+        <tr><td>NHT</td><td class="amt">${fmt(result.nhtEmp)}</td><td class="amt">${fmt(result.nhtEr)}</td><td class="amt">${fmt(ytd.nht)}</td></tr>
+        <tr style="font-weight:700;border-top:2px solid #1a2540"><td>Month-to-Date</td><td class="amt">${fmt(result.totalEmpDeductions)}</td><td class="amt">${fmt(result.totalErContributions)}</td><td class="amt"></td></tr>
+      </tbody>
+    </table>
+    <div class="ps-totals">
+      <div class="box"><div class="lbl">Gross Earnings</div><div class="val">${fmt(result.gross)}</div></div>
+      <div class="box"><div class="lbl">Total Deductions</div><div class="val" style="color:#ef4444">${fmt(result.totalEmpDeductions)}</div></div>
+      <div class="box" style="border-color:#10b981"><div class="lbl">Net Pay</div><div class="val" style="color:#10b981">${fmt(result.netPay)}</div></div>
+    </div>
+    <div class="ps-footer">This is a computer-generated payslip. For queries, contact the Project Coordinator.</div>
+  </div>`;
+}
+
+function printPayslip(){
+  const area=document.getElementById('payslipPrintArea');
+  area.style.display='block';
+  window.print();
+  setTimeout(()=>{area.style.display='none';},500);
+}
+
+// ==================== TAX SUMMARY ====================
+function renderTaxSummary(){
+  const runs=DATA.payrollRuns;
+  let html='<table><thead><tr><th>Pay Date</th><th class="text-right">NIS (Emp+Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed. Tax (Emp+Er)</th><th class="text-right">NHT (Emp+Er)</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Total Er Contr.</th><th class="text-right">Grand Total</th></tr></thead><tbody>';
+  if(runs.length===0)html+='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">No payroll data</td></tr>';
+  runs.forEach(r=>{
+    let nis=0,it=0,ed=0,nht=0,empD=0,erC=0;
+    r.results.forEach(x=>{nis+=x.nisEmp+x.nisEr;it+=x.incomeTax;ed+=x.edTaxEmp+x.edTaxEr;nht+=x.nhtEmp+x.nhtEr;empD+=x.totalEmpDeductions;erC+=x.totalErContributions;});
+    html+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(nis)}</td><td class="mono text-right">${fmt(it)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(nht)}</td><td class="mono text-right">${fmt(empD)}</td><td class="mono text-right">${fmt(erC)}</td><td class="mono text-right" style="font-weight:700">${fmt(empD+erC)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('taxSummaryTable').innerHTML=html;
+
+  const sel=document.getElementById('taxCycleSelect');
+  sel.innerHTML='<option value="">— Select —</option>';
+  runs.forEach((r,i)=>{sel.innerHTML+=`<option value="${i}">${fmtDate(r.date)}</option>`;});
+}
+
+function renderTaxBreakdown(){
+  const idx=parseInt(document.getElementById('taxCycleSelect').value);
+  if(isNaN(idx))return;
+  const run=DATA.payrollRuns[idx];
+  let html='<table><thead><tr><th>Employee</th><th class="text-right">NIS (Emp)</th><th class="text-right">NIS (Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed.Tax (Emp)</th><th class="text-right">Ed.Tax (Er)</th><th class="text-right">NHT (Emp)</th><th class="text-right">NHT (Er)</th></tr></thead><tbody>';
+  run.results.forEach(r=>{
+    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.nisEr)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.edTaxEr)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.nhtEr)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('taxBreakdownTable').innerHTML=html;
+}
+
+// ==================== SETTINGS ====================
+function loadSettings(){
+  const s=DATA.settings;
+  document.getElementById('rateNISEmp').value=s.nisEmp;
+  document.getElementById('rateNISEr').value=s.nisEr;
+  document.getElementById('rateEdTaxEmp').value=s.edTaxEmp;
+  document.getElementById('rateEdTaxEr').value=s.edTaxEr;
+  document.getElementById('rateNHTEmp').value=s.nhtEmp;
+  document.getElementById('rateNHTEr').value=s.nhtEr;
+  document.getElementById('rateIncomeTax').value=s.incomeTax;
+  document.getElementById('annualThreshold').value=s.annualThreshold;
+}
+
+function saveSettings(){
+  DATA.settings={
+    nisEmp:parseFloat(document.getElementById('rateNISEmp').value)||3,
+    nisEr:parseFloat(document.getElementById('rateNISEr').value)||3,
+    edTaxEmp:parseFloat(document.getElementById('rateEdTaxEmp').value)||2.25,
+    edTaxEr:parseFloat(document.getElementById('rateEdTaxEr').value)||3.5,
+    nhtEmp:parseFloat(document.getElementById('rateNHTEmp').value)||2,
+    nhtEr:parseFloat(document.getElementById('rateNHTEr').value)||3,
+    incomeTax:parseFloat(document.getElementById('rateIncomeTax').value)||25,
+    annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1500096
+  };
+  saveStore();
+  alert('Settings saved!');
+}
+
+// ==================== PRESET DATA ====================
+function loadPresetData(){
+  if(DATA.employees.length>0&&!confirm('This will replace existing employees. Continue?'))return;
+  DATA.employees=[
+    {name:'Steve Barrett',designation:'Co-ordinator',type:'FT',mobile:'876-365-2325',dob:'1996-11-03',trn:'127-009-850',nis:'C-96-05-01',startDate:'2021-03-01',salary:37145},
+    {name:'Rashaun Barrett',designation:'Administrative Assistant/ Assistant Coordinator',type:'FT',mobile:'876-530-9149',dob:'1998-10-05',trn:'127-009-817',nis:'C-98-03-73',startDate:'2022-10-01',salary:78000},
+    {name:'Rohan Hamilton',designation:'Welding Instructor',type:'FT',mobile:'876-783-8616',dob:'1974-07-26',trn:'105-249-262',nis:'C-74-05-80',startDate:'2018-08-05',salary:95943.09},
+    {name:'Richard Smith',designation:'Electrical Installation Instructor (BNV)',type:'FT',mobile:'876-986-3698',dob:'1971-03-07',trn:'102-183-511',nis:'C-71-08-24',startDate:'2020-04-01',salary:91374.37},
+    {name:'Tracy-Ann Johnson',designation:'Cosmetology/Beauty Therapy Instructor',type:'FT',mobile:'876-879-6059',dob:'1986-01-16',trn:'115-862-331',nis:'C-86-39-20',startDate:'2019-04-01',salary:86190.64},
+    {name:'Kevin Allen',designation:'Welding Instructor (BNV)',type:'FT',mobile:'876-536-5733',dob:'1964-04-08',trn:'100-861-229',nis:'M-64-10-13',startDate:'2020-04-01',salary:91374.37},
+    {name:'Seyoum Blackwood',designation:'Electrical Installation Instructor',type:'FT',mobile:'876-853-7632',dob:'1998-06-01',trn:'127-288-945',nis:'C-98-07-79',startDate:'2022-03-01',salary:91374.37},
+    {name:'Pamella Archer',designation:'Entrepreneurship Instructor (PT)',type:'PT',mobile:'876-454-8458',dob:'1971-09-07',trn:'102-062-072',nis:'C-71-80-34',startDate:'2021-08-05',salary:0},
+    {name:'Fontanette Whittingham',designation:'Information Technology Instructor (PT)',type:'PT',mobile:'876-869-5329',dob:'1986-04-16',trn:'116-017-996',nis:'C-86-32-25',startDate:'2020-08-01',salary:0},
+    {name:'Yves Bergeron',designation:'Personal Development Instructor (PT)',type:'PT',mobile:'876-319-8904',dob:'1963-11-17',trn:'112-579-477',nis:'N-63-15-58',startDate:'2020-08-01',salary:0},
+    {name:'Glowmayne Rowe',designation:'Mathematics Instructor (PT)',type:'PT',mobile:'',dob:'',trn:'126-305-307',nis:'M-96-08-58',startDate:'',salary:0}
+  ];
+  saveStore();
+  alert('Preset employee data loaded!');
+  showPage('employees');
+}
+
+// ==================== IMPORT/EXPORT ====================
+function exportAllData(){
+  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`HazardSTC_Payroll_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+function importData(evt){
+  const file=evt.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{DATA=JSON.parse(e.target.result);saveStore();alert('Data imported!');location.reload();}
+    catch(err){alert('Invalid file format');}
+  };
+  reader.readAsText(file);
+  evt.target.value='';
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded',function(){renderDashboard();});
+</script>
+</body>
+</html>
