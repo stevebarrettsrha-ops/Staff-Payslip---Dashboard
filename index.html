@@ -145,6 +145,12 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .payslip-preview .ps-totals .box .val{font-size:1.1rem;font-weight:700;color:#1a2540;font-family:'JetBrains Mono',monospace;margin-top:.25rem}
 .payslip-preview .ps-footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;font-size:.7rem;color:#999;text-align:center}
 
+/* Salary Records */
+#salaryRecordsTable table{min-width:1100px}
+#salaryRecordsTable th,#salaryRecordsTable td{padding:.45rem .5rem;font-size:.75rem}
+#quarterlyTable table{min-width:1000px}
+#empQuarterlyTable table{min-width:900px}
+
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--surface)}
@@ -175,6 +181,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="nav-item" onclick="showPage('employees')"><span class="icon">👥</span><span class="nav-text">Employees</span></div>
       <div class="nav-item" onclick="showPage('payroll')"><span class="icon">💰</span><span class="nav-text">Run Payroll</span></div>
       <div class="nav-item" onclick="showPage('payslips')"><span class="icon">🧾</span><span class="nav-text">Payslips</span></div>
+      <div class="nav-item" onclick="showPage('salaryrecords')"><span class="icon">📆</span><span class="nav-text">Salary Records</span></div>
       <div class="nav-item" onclick="showPage('deductions')"><span class="icon">📋</span><span class="nav-text">Tax Summary</span></div>
       <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
     </nav>
@@ -231,7 +238,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
             </div>
             <div class="form-group">
               <label>Income Tax Threshold (Annual)</label>
-              <input type="number" id="taxThreshold" value="1500096" step="1">
+              <input type="number" id="taxThreshold" value="1799376" step="1">
             </div>
           </div>
           <div style="margin-top:1.25rem">
@@ -298,6 +305,36 @@ tr:hover td{background:rgba(59,130,246,.04)}
       </div>
     </div>
 
+    <!-- ===== SALARY RECORDS ===== -->
+    <div id="page-salaryrecords" class="page">
+      <div class="page-header">
+        <div><h2>Salary Records</h2><div class="subtitle">Monthly &amp; Quarterly Salary Records for All Employees</div></div>
+        <div class="btn-group">
+          <button class="btn btn-ghost" onclick="exportSalaryRecordsCSV()">📥 Export CSV</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Select Fiscal Year</h3>
+          <div class="form-group" style="margin:0;min-width:160px">
+            <select id="salaryRecordYear" onchange="renderSalaryRecords()"></select>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="table-wrap" id="salaryRecordsTable" style="font-size:.8rem"></div>
+        </div>
+      </div>
+      <div class="stats-row" id="salaryRecordStats"></div>
+      <div class="panel">
+        <div class="panel-head"><h3>Quarterly Summary</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="quarterlyTable"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Per-Employee Quarterly Breakdown</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="empQuarterlyTable"></div></div>
+      </div>
+    </div>
+
     <!-- ===== SETTINGS ===== -->
     <div id="page-settings" class="page">
       <div class="page-header">
@@ -309,12 +346,16 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <div class="form-grid">
             <div class="form-group"><label>NIS Employee Rate (%)</label><input type="number" id="rateNISEmp" value="3" step="0.1"></div>
             <div class="form-group"><label>NIS Employer Rate (%)</label><input type="number" id="rateNISEr" value="3" step="0.1"></div>
+            <div class="form-group"><label>NIS Monthly Wage Ceiling ($)</label><input type="number" id="nisCeilingMonthly" value="416667" step="1"></div>
             <div class="form-group"><label>Education Tax Employee (%)</label><input type="number" id="rateEdTaxEmp" value="2.25" step="0.01"></div>
             <div class="form-group"><label>Education Tax Employer (%)</label><input type="number" id="rateEdTaxEr" value="3.5" step="0.01"></div>
             <div class="form-group"><label>NHT Employee (%)</label><input type="number" id="rateNHTEmp" value="2" step="0.1"></div>
             <div class="form-group"><label>NHT Employer (%)</label><input type="number" id="rateNHTEr" value="3" step="0.1"></div>
-            <div class="form-group"><label>Income Tax Rate (%)</label><input type="number" id="rateIncomeTax" value="25" step="0.1"></div>
-            <div class="form-group"><label>Annual Income Tax Threshold ($)</label><input type="number" id="annualThreshold" value="1500096" step="1"></div>
+            <div class="form-group"><label>HEART/NSTA Employer (%)</label><input type="number" id="rateHeartEr" value="3" step="0.1"></div>
+            <div class="form-group"><label>Income Tax Standard Rate (%)</label><input type="number" id="rateIncomeTax" value="25" step="0.1"></div>
+            <div class="form-group"><label>Income Tax Higher Rate (%)</label><input type="number" id="rateIncomeTaxHigher" value="30" step="0.1"></div>
+            <div class="form-group"><label>Higher Rate Annual Threshold ($)</label><input type="number" id="higherBracketAnnual" value="6000000" step="1"></div>
+            <div class="form-group"><label>Annual Income Tax Threshold ($)</label><input type="number" id="annualThreshold" value="1799376" step="1"></div>
           </div>
           <div style="margin-top:1.25rem;display:flex;gap:.75rem">
             <button class="btn btn-success" onclick="saveSettings()">💾 Save Settings</button>
@@ -369,7 +410,13 @@ let DATA = loadStore();
 
 function defaultData(){
   return {
-    settings:{nisEmp:3,nisEr:3,edTaxEmp:2.25,edTaxEr:3.5,nhtEmp:2,nhtEr:3,incomeTax:25,annualThreshold:1500096},
+    settings:{
+      nisEmp:3,nisEr:3,edTaxEmp:2.25,edTaxEr:3.5,nhtEmp:2,nhtEr:3,
+      incomeTax:25,incomeTaxHigher:30,higherBracketAnnual:6000000,
+      annualThreshold:1799376,
+      nisCeilingMonthly:416667,
+      heartEr:3
+    },
     employees:[],
     payrollRuns:[]
   };
@@ -390,13 +437,14 @@ function showPage(name){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   const navItems=document.querySelectorAll('.nav-item');
-  const pages=['dashboard','employees','payroll','payslips','deductions','settings'];
+  const pages=['dashboard','employees','payroll','payslips','salaryrecords','deductions','settings'];
   const idx=pages.indexOf(name);
   if(idx>=0)navItems[idx].classList.add('active');
   if(name==='dashboard')renderDashboard();
   if(name==='employees')renderEmployees();
   if(name==='payroll')renderPayrollInput();
   if(name==='payslips')populatePayslipSelects();
+  if(name==='salaryrecords')renderSalaryRecords();
   if(name==='deductions')renderTaxSummary();
   if(name==='settings')loadSettings();
 }
@@ -533,37 +581,63 @@ function fillDefaultSalaries(){
 function calculatePayroll(){
   const s=DATA.settings;
   const monthlyThreshold=s.annualThreshold/12;
+  const monthlyHigherBracket=(s.higherBracketAnnual||6000000)/12;
+  const nisCeiling=s.nisCeilingMonthly||416667;
   const results=[];
 
   DATA.employees.forEach((e,i)=>{
     const gross=parseFloat(document.getElementById('grossInput_'+i)?.value)||0;
-    const nisEmp=gross*(s.nisEmp/100);
-    const nisEr=gross*(s.nisEr/100);
-    const edTaxEmp=gross*(s.edTaxEmp/100);
-    const edTaxEr=gross*(s.edTaxEr/100);
+
+    // NIS — capped at ceiling
+    const nisableGross=Math.min(gross,nisCeiling);
+    const nisEmp=nisableGross*(s.nisEmp/100);
+    const nisEr=nisableGross*(s.nisEr/100);
+
+    // NHT — no cap
     const nhtEmp=gross*(s.nhtEmp/100);
     const nhtEr=gross*(s.nhtEr/100);
-    const taxableIncome=gross-nisEmp-nhtEmp;
-    const incomeTax=taxableIncome>(monthlyThreshold)?(taxableIncome-monthlyThreshold)*(s.incomeTax/100):0;
+
+    // Statutory income for Education Tax = Gross - NIS employee
+    const statutoryIncome=gross-nisEmp;
+    const edTaxEmp=statutoryIncome*(s.edTaxEmp/100);
+    const edTaxEr=statutoryIncome*(s.edTaxEr/100);
+
+    // HEART/NSTA — employer only
+    const heartEr=gross*((s.heartEr||3)/100);
+
+    // Income Tax — progressive: 25% up to $6M bracket, 30% above
+    // Chargeable income = Gross - NIS - NHT (approved deductions)
+    const chargeableIncome=gross-nisEmp-nhtEmp;
+    let incomeTax=0;
+    if(chargeableIncome>monthlyThreshold){
+      const taxable=chargeableIncome-monthlyThreshold;
+      const standardBand=monthlyHigherBracket-monthlyThreshold;
+      if(taxable<=standardBand){
+        incomeTax=taxable*(s.incomeTax/100);
+      }else{
+        incomeTax=standardBand*(s.incomeTax/100)+(taxable-standardBand)*((s.incomeTaxHigher||30)/100);
+      }
+    }
+
     const totalEmpDeductions=nisEmp+edTaxEmp+nhtEmp+incomeTax;
-    const totalErContributions=nisEr+edTaxEr+nhtEr;
+    const totalErContributions=nisEr+edTaxEr+nhtEr+heartEr;
     const netPay=gross-totalEmpDeductions;
 
     results.push({
       empName:e.name,empType:e.type,designation:e.designation,trn:e.trn,nis:e.nis,
-      gross,nisEmp,nisEr,edTaxEmp,edTaxEr,nhtEmp,nhtEr,incomeTax,
+      gross,nisEmp,nisEr,edTaxEmp,edTaxEr,nhtEmp,nhtEr,heartEr,incomeTax,
       totalEmpDeductions,totalErContributions,netPay
     });
   });
 
   // Display results
-  let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th></tr></thead><tbody>';
-  let totals={gross:0,nis:0,ed:0,it:0,nht:0,ded:0,net:0};
+  let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th></tr></thead><tbody>';
+  let totals={gross:0,nis:0,ed:0,it:0,nht:0,heart:0,ded:0,net:0};
   results.forEach(r=>{
-    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td></tr>`;
-    totals.gross+=r.gross;totals.nis+=r.nisEmp;totals.ed+=r.edTaxEmp;totals.it+=r.incomeTax;totals.nht+=r.nhtEmp;totals.ded+=r.totalEmpDeductions;totals.net+=r.netPay;
+    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.heartEr)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td></tr>`;
+    totals.gross+=r.gross;totals.nis+=r.nisEmp;totals.ed+=r.edTaxEmp;totals.it+=r.incomeTax;totals.nht+=r.nhtEmp;totals.heart+=r.heartEr;totals.ded+=r.totalEmpDeductions;totals.net+=r.netPay;
   });
-  html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td></tr>`;
+  html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.heart)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td></tr>`;
   html+='</tbody></table>';
   document.getElementById('payrollResults').innerHTML=html;
   document.getElementById('payrollResultsPanel').style.display='block';
@@ -598,12 +672,14 @@ function generatePayslipPreview(){
   const result=run.results.find(r=>r.empName===emp.name);
   if(!result){alert('No payroll data found for this employee in selected cycle');return;}
 
-  // Calculate YTD
-  let ytd={nis:0,edTax:0,nht:0,incomeTax:0,gross:0};
+  // Calculate YTD — only for same calendar year
+  const runYear=new Date(run.date).getFullYear();
+  let ytd={nis:0,edTax:0,nht:0,incomeTax:0,gross:0,heartEr:0,netPay:0};
   DATA.payrollRuns.forEach((r,ri)=>{
     if(ri>cycIdx)return;
+    if(new Date(r.date).getFullYear()!==runYear)return;
     const match=r.results.find(x=>x.empName===emp.name);
-    if(match){ytd.nis+=match.nisEmp;ytd.edTax+=match.edTaxEmp;ytd.nht+=match.nhtEmp;ytd.incomeTax+=match.incomeTax;ytd.gross+=match.gross;}
+    if(match){ytd.nis+=match.nisEmp;ytd.edTax+=match.edTaxEmp;ytd.nht+=match.nhtEmp;ytd.incomeTax+=match.incomeTax;ytd.gross+=match.gross;ytd.heartEr+=(match.heartEr||0);ytd.netPay+=match.netPay;}
   });
 
   const psHtml=buildPayslipHTML(emp,result,run.date,ytd);
@@ -636,6 +712,7 @@ function buildPayslipHTML(emp,result,date,ytd){
         <tr><td>Income Tax</td><td class="amt">${fmt(result.incomeTax)}</td><td class="amt">—</td><td class="amt">${fmt(ytd.incomeTax)}</td></tr>
         <tr><td>Education Tax</td><td class="amt">${fmt(result.edTaxEmp)}</td><td class="amt">${fmt(result.edTaxEr)}</td><td class="amt">${fmt(ytd.edTax)}</td></tr>
         <tr><td>NHT</td><td class="amt">${fmt(result.nhtEmp)}</td><td class="amt">${fmt(result.nhtEr)}</td><td class="amt">${fmt(ytd.nht)}</td></tr>
+        <tr><td>HEART/NSTA</td><td class="amt">—</td><td class="amt">${fmt(result.heartEr||0)}</td><td class="amt">${fmt(ytd.heartEr)}</td></tr>
         <tr style="font-weight:700;border-top:2px solid #1a2540"><td>Month-to-Date</td><td class="amt">${fmt(result.totalEmpDeductions)}</td><td class="amt">${fmt(result.totalErContributions)}</td><td class="amt"></td></tr>
       </tbody>
     </table>
@@ -655,15 +732,243 @@ function printPayslip(){
   setTimeout(()=>{area.style.display='none';},500);
 }
 
+// ==================== SALARY RECORDS ====================
+const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getSalaryRecordYears(){
+  const years=new Set();
+  DATA.payrollRuns.forEach(r=>{
+    if(r.date){const y=new Date(r.date).getFullYear();years.add(y);}
+  });
+  if(years.size===0)years.add(new Date().getFullYear());
+  return Array.from(years).sort((a,b)=>b-a);
+}
+
+function getMonthlyData(year){
+  // Build month-by-month data for each employee from payroll runs
+  const monthly={}; // empName -> [12 months of data]
+  DATA.employees.forEach(e=>{
+    monthly[e.name]=Array.from({length:12},()=>null);
+  });
+  DATA.payrollRuns.forEach(run=>{
+    const d=new Date(run.date);
+    if(d.getFullYear()!==year)return;
+    const m=d.getMonth();
+    run.results.forEach(r=>{
+      if(monthly[r.empName]){
+        monthly[r.empName][m]={
+          gross:r.gross,netPay:r.netPay,
+          nisEmp:r.nisEmp,nisEr:r.nisEr,
+          edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,
+          nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,
+          heartEr:r.heartEr||0,
+          incomeTax:r.incomeTax,
+          totalEmpDeductions:r.totalEmpDeductions,
+          totalErContributions:r.totalErContributions
+        };
+      }
+    });
+  });
+  return monthly;
+}
+
+function renderSalaryRecords(){
+  const yearSel=document.getElementById('salaryRecordYear');
+  const years=getSalaryRecordYears();
+  const prevVal=yearSel.value;
+  yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(prevVal&&years.includes(parseInt(prevVal)))yearSel.value=prevVal;
+
+  const year=parseInt(yearSel.value);
+  const monthly=getMonthlyData(year);
+  const empNames=DATA.employees.map(e=>e.name);
+
+  // Main monthly gross table
+  let html='<table><thead><tr><th>Employee</th>';
+  MONTH_NAMES.forEach(m=>{html+=`<th class="text-right">${m}</th>`;});
+  html+='<th class="text-right" style="background:rgba(59,130,246,.15);color:#60a5fa">Annual Total</th></tr></thead><tbody>';
+
+  let grandMonthly=Array.from({length:12},()=>0);
+  let grandAnnual=0;
+
+  empNames.forEach(name=>{
+    const emp=DATA.employees.find(e=>e.name===name);
+    const data=monthly[name];
+    let annualTotal=0;
+    html+=`<tr><td>${name} <span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span></td>`;
+    for(let m=0;m<12;m++){
+      const val=data[m]?data[m].gross:0;
+      annualTotal+=val;
+      grandMonthly[m]+=val;
+      html+=`<td class="mono text-right">${val?fmt(val):'<span style="color:var(--text-muted)">—</span>'}</td>`;
+    }
+    grandAnnual+=annualTotal;
+    html+=`<td class="mono text-right" style="font-weight:600;background:rgba(59,130,246,.05)">${fmt(annualTotal)}</td></tr>`;
+  });
+
+  // Monthly totals row
+  html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>MONTHLY TOTAL</td>`;
+  for(let m=0;m<12;m++){
+    html+=`<td class="mono text-right">${grandMonthly[m]?fmt(grandMonthly[m]):'—'}</td>`;
+  }
+  html+=`<td class="mono text-right" style="color:var(--primary);background:rgba(59,130,246,.1)">${fmt(grandAnnual)}</td></tr>`;
+
+  // Net pay row
+  let netMonthly=Array.from({length:12},()=>0);
+  let netAnnual=0;
+  empNames.forEach(name=>{
+    const data=monthly[name];
+    for(let m=0;m<12;m++){
+      if(data[m]){netMonthly[m]+=data[m].netPay;netAnnual+=data[m].netPay;}
+    }
+  });
+  html+=`<tr style="font-weight:700;color:var(--green)"><td>NET PAY TOTAL</td>`;
+  for(let m=0;m<12;m++){
+    html+=`<td class="mono text-right">${netMonthly[m]?fmt(netMonthly[m]):'—'}</td>`;
+  }
+  html+=`<td class="mono text-right" style="background:rgba(16,185,129,.1)">${fmt(netAnnual)}</td></tr>`;
+
+  if(empNames.length===0)html+=`<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:2rem">No employees or payroll data</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('salaryRecordsTable').innerHTML=html;
+
+  // Stats cards
+  const totalDeductions=grandAnnual-netAnnual;
+  let erTotal=0;
+  empNames.forEach(name=>{
+    const data=monthly[name];
+    for(let m=0;m<12;m++){if(data[m])erTotal+=data[m].totalErContributions;}
+  });
+  const monthsWithData=grandMonthly.filter(v=>v>0).length;
+  document.getElementById('salaryRecordStats').innerHTML=`
+    <div class="stat-card blue"><div class="label">Annual Gross</div><div class="value mono">${fmt(grandAnnual)}</div><div class="sub">${year} — ${monthsWithData} month(s) recorded</div></div>
+    <div class="stat-card green"><div class="label">Annual Net Pay</div><div class="value mono">${fmt(netAnnual)}</div><div class="sub">After all employee deductions</div></div>
+    <div class="stat-card red"><div class="label">Employee Deductions</div><div class="value mono">${fmt(totalDeductions)}</div><div class="sub">NIS + Ed Tax + NHT + Income Tax</div></div>
+    <div class="stat-card gold"><div class="label">Employer Contributions</div><div class="value mono">${fmt(erTotal)}</div><div class="sub">NIS + Ed Tax + NHT + HEART</div></div>
+  `;
+
+  renderQuarterlyTables(year,monthly,empNames);
+}
+
+function renderQuarterlyTables(year,monthly,empNames){
+  const quarters=[
+    {label:'Q1 (Jan–Mar)',months:[0,1,2]},
+    {label:'Q2 (Apr–Jun)',months:[3,4,5]},
+    {label:'Q3 (Jul–Sep)',months:[6,7,8]},
+    {label:'Q4 (Oct–Dec)',months:[9,10,11]}
+  ];
+
+  // Aggregated quarterly summary
+  let qhtml='<table><thead><tr><th>Quarter</th><th class="text-right">Gross Pay</th><th class="text-right">NIS (Emp)</th><th class="text-right">Ed. Tax (Emp)</th><th class="text-right">NHT (Emp)</th><th class="text-right">Income Tax</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Net Pay</th><th class="text-right">NIS (Er)</th><th class="text-right">Ed. Tax (Er)</th><th class="text-right">NHT (Er)</th><th class="text-right">HEART (Er)</th><th class="text-right">Total Er Contr.</th></tr></thead><tbody>';
+
+  let annTotals={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
+
+  quarters.forEach(q=>{
+    let t={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
+    empNames.forEach(name=>{
+      const data=monthly[name];
+      q.months.forEach(m=>{
+        if(data[m]){
+          t.gross+=data[m].gross;t.nisE+=data[m].nisEmp;t.edE+=data[m].edTaxEmp;t.nhtE+=data[m].nhtEmp;
+          t.it+=data[m].incomeTax;t.empDed+=data[m].totalEmpDeductions;t.net+=data[m].netPay;
+          t.nisR+=data[m].nisEr;t.edR+=data[m].edTaxEr;t.nhtR+=data[m].nhtEr;t.heartR+=data[m].heartEr;
+          t.erC+=data[m].totalErContributions;
+        }
+      });
+    });
+    Object.keys(annTotals).forEach(k=>{annTotals[k]+=t[k];});
+    const hasData=t.gross>0;
+    qhtml+=`<tr><td style="font-weight:600">${q.label}</td>
+      <td class="mono text-right">${hasData?fmt(t.gross):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.nisE):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.edE):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.nhtE):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.it):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.empDed):'—'}</td>
+      <td class="mono text-right" style="color:var(--green)">${hasData?fmt(t.net):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.nisR):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.edR):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.nhtR):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.heartR):'—'}</td>
+      <td class="mono text-right">${hasData?fmt(t.erC):'—'}</td></tr>`;
+  });
+
+  qhtml+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>ANNUAL TOTAL</td>
+    <td class="mono text-right">${fmt(annTotals.gross)}</td><td class="mono text-right">${fmt(annTotals.nisE)}</td>
+    <td class="mono text-right">${fmt(annTotals.edE)}</td><td class="mono text-right">${fmt(annTotals.nhtE)}</td>
+    <td class="mono text-right">${fmt(annTotals.it)}</td><td class="mono text-right">${fmt(annTotals.empDed)}</td>
+    <td class="mono text-right" style="color:var(--green)">${fmt(annTotals.net)}</td>
+    <td class="mono text-right">${fmt(annTotals.nisR)}</td><td class="mono text-right">${fmt(annTotals.edR)}</td>
+    <td class="mono text-right">${fmt(annTotals.nhtR)}</td><td class="mono text-right">${fmt(annTotals.heartR)}</td>
+    <td class="mono text-right">${fmt(annTotals.erC)}</td></tr>`;
+  qhtml+='</tbody></table>';
+  document.getElementById('quarterlyTable').innerHTML=qhtml;
+
+  // Per-employee quarterly breakdown
+  let eqhtml='<table><thead><tr><th>Employee</th><th class="text-right">Q1 Gross</th><th class="text-right">Q1 Net</th><th class="text-right">Q2 Gross</th><th class="text-right">Q2 Net</th><th class="text-right">Q3 Gross</th><th class="text-right">Q3 Net</th><th class="text-right">Q4 Gross</th><th class="text-right">Q4 Net</th><th class="text-right">Annual Gross</th><th class="text-right">Annual Net</th></tr></thead><tbody>';
+
+  let qTotals=Array.from({length:4},()=>({gross:0,net:0}));
+  let aTotals={gross:0,net:0};
+
+  empNames.forEach(name=>{
+    const emp=DATA.employees.find(e=>e.name===name);
+    const data=monthly[name];
+    let empAnnGross=0,empAnnNet=0;
+    eqhtml+=`<tr><td>${name} <span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span></td>`;
+    quarters.forEach((q,qi)=>{
+      let qg=0,qn=0;
+      q.months.forEach(m=>{
+        if(data[m]){qg+=data[m].gross;qn+=data[m].netPay;}
+      });
+      empAnnGross+=qg;empAnnNet+=qn;
+      qTotals[qi].gross+=qg;qTotals[qi].net+=qn;
+      eqhtml+=`<td class="mono text-right">${qg?fmt(qg):'—'}</td><td class="mono text-right" style="color:var(--green)">${qn?fmt(qn):'—'}</td>`;
+    });
+    aTotals.gross+=empAnnGross;aTotals.net+=empAnnNet;
+    eqhtml+=`<td class="mono text-right" style="font-weight:600">${fmt(empAnnGross)}</td><td class="mono text-right" style="font-weight:600;color:var(--green)">${fmt(empAnnNet)}</td></tr>`;
+  });
+
+  eqhtml+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td>`;
+  quarters.forEach((q,qi)=>{
+    eqhtml+=`<td class="mono text-right">${fmt(qTotals[qi].gross)}</td><td class="mono text-right" style="color:var(--green)">${fmt(qTotals[qi].net)}</td>`;
+  });
+  eqhtml+=`<td class="mono text-right">${fmt(aTotals.gross)}</td><td class="mono text-right" style="color:var(--green)">${fmt(aTotals.net)}</td></tr>`;
+
+  if(empNames.length===0)eqhtml+=`<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">No data</td></tr>`;
+  eqhtml+='</tbody></table>';
+  document.getElementById('empQuarterlyTable').innerHTML=eqhtml;
+}
+
+function exportSalaryRecordsCSV(){
+  const year=parseInt(document.getElementById('salaryRecordYear').value)||new Date().getFullYear();
+  const monthly=getMonthlyData(year);
+  let csv='Employee,Type,'+MONTH_NAMES.join(',')+',Annual Total\n';
+  DATA.employees.forEach(e=>{
+    const data=monthly[e.name];
+    let annTotal=0;
+    csv+=`"${e.name}",${e.type}`;
+    for(let m=0;m<12;m++){
+      const val=data[m]?data[m].gross:0;
+      annTotal+=val;csv+=`,${val.toFixed(2)}`;
+    }
+    csv+=`,${annTotal.toFixed(2)}\n`;
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`CESTIS_SalaryRecords_${year}.csv`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
 // ==================== TAX SUMMARY ====================
 function renderTaxSummary(){
   const runs=DATA.payrollRuns;
-  let html='<table><thead><tr><th>Pay Date</th><th class="text-right">NIS (Emp+Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed. Tax (Emp+Er)</th><th class="text-right">NHT (Emp+Er)</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Total Er Contr.</th><th class="text-right">Grand Total</th></tr></thead><tbody>';
-  if(runs.length===0)html+='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">No payroll data</td></tr>';
+  let html='<table><thead><tr><th>Pay Date</th><th class="text-right">NIS (Emp+Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed. Tax (Emp+Er)</th><th class="text-right">NHT (Emp+Er)</th><th class="text-right">HEART (Er)</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Total Er Contr.</th><th class="text-right">Grand Total</th></tr></thead><tbody>';
+  if(runs.length===0)html+='<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">No payroll data</td></tr>';
   runs.forEach(r=>{
-    let nis=0,it=0,ed=0,nht=0,empD=0,erC=0;
-    r.results.forEach(x=>{nis+=x.nisEmp+x.nisEr;it+=x.incomeTax;ed+=x.edTaxEmp+x.edTaxEr;nht+=x.nhtEmp+x.nhtEr;empD+=x.totalEmpDeductions;erC+=x.totalErContributions;});
-    html+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(nis)}</td><td class="mono text-right">${fmt(it)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(nht)}</td><td class="mono text-right">${fmt(empD)}</td><td class="mono text-right">${fmt(erC)}</td><td class="mono text-right" style="font-weight:700">${fmt(empD+erC)}</td></tr>`;
+    let nis=0,it=0,ed=0,nht=0,heart=0,empD=0,erC=0;
+    r.results.forEach(x=>{nis+=x.nisEmp+x.nisEr;it+=x.incomeTax;ed+=x.edTaxEmp+x.edTaxEr;nht+=x.nhtEmp+x.nhtEr;heart+=(x.heartEr||0);empD+=x.totalEmpDeductions;erC+=x.totalErContributions;});
+    html+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(nis)}</td><td class="mono text-right">${fmt(it)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(nht)}</td><td class="mono text-right">${fmt(heart)}</td><td class="mono text-right">${fmt(empD)}</td><td class="mono text-right">${fmt(erC)}</td><td class="mono text-right" style="font-weight:700">${fmt(empD+erC)}</td></tr>`;
   });
   html+='</tbody></table>';
   document.getElementById('taxSummaryTable').innerHTML=html;
@@ -677,9 +982,9 @@ function renderTaxBreakdown(){
   const idx=parseInt(document.getElementById('taxCycleSelect').value);
   if(isNaN(idx))return;
   const run=DATA.payrollRuns[idx];
-  let html='<table><thead><tr><th>Employee</th><th class="text-right">NIS (Emp)</th><th class="text-right">NIS (Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed.Tax (Emp)</th><th class="text-right">Ed.Tax (Er)</th><th class="text-right">NHT (Emp)</th><th class="text-right">NHT (Er)</th></tr></thead><tbody>';
+  let html='<table><thead><tr><th>Employee</th><th class="text-right">NIS (Emp)</th><th class="text-right">NIS (Er)</th><th class="text-right">Income Tax</th><th class="text-right">Ed.Tax (Emp)</th><th class="text-right">Ed.Tax (Er)</th><th class="text-right">NHT (Emp)</th><th class="text-right">NHT (Er)</th><th class="text-right">HEART (Er)</th></tr></thead><tbody>';
   run.results.forEach(r=>{
-    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.nisEr)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.edTaxEr)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.nhtEr)}</td></tr>`;
+    html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.nisEr)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.edTaxEr)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.nhtEr)}</td><td class="mono text-right">${fmt(r.heartEr||0)}</td></tr>`;
   });
   html+='</tbody></table>';
   document.getElementById('taxBreakdownTable').innerHTML=html;
@@ -690,11 +995,15 @@ function loadSettings(){
   const s=DATA.settings;
   document.getElementById('rateNISEmp').value=s.nisEmp;
   document.getElementById('rateNISEr').value=s.nisEr;
+  document.getElementById('nisCeilingMonthly').value=s.nisCeilingMonthly||416667;
   document.getElementById('rateEdTaxEmp').value=s.edTaxEmp;
   document.getElementById('rateEdTaxEr').value=s.edTaxEr;
   document.getElementById('rateNHTEmp').value=s.nhtEmp;
   document.getElementById('rateNHTEr').value=s.nhtEr;
+  document.getElementById('rateHeartEr').value=s.heartEr||3;
   document.getElementById('rateIncomeTax').value=s.incomeTax;
+  document.getElementById('rateIncomeTaxHigher').value=s.incomeTaxHigher||30;
+  document.getElementById('higherBracketAnnual').value=s.higherBracketAnnual||6000000;
   document.getElementById('annualThreshold').value=s.annualThreshold;
 }
 
@@ -702,12 +1011,16 @@ function saveSettings(){
   DATA.settings={
     nisEmp:parseFloat(document.getElementById('rateNISEmp').value)||3,
     nisEr:parseFloat(document.getElementById('rateNISEr').value)||3,
+    nisCeilingMonthly:parseFloat(document.getElementById('nisCeilingMonthly').value)||416667,
     edTaxEmp:parseFloat(document.getElementById('rateEdTaxEmp').value)||2.25,
     edTaxEr:parseFloat(document.getElementById('rateEdTaxEr').value)||3.5,
     nhtEmp:parseFloat(document.getElementById('rateNHTEmp').value)||2,
     nhtEr:parseFloat(document.getElementById('rateNHTEr').value)||3,
+    heartEr:parseFloat(document.getElementById('rateHeartEr').value)||3,
     incomeTax:parseFloat(document.getElementById('rateIncomeTax').value)||25,
-    annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1500096
+    incomeTaxHigher:parseFloat(document.getElementById('rateIncomeTaxHigher').value)||30,
+    higherBracketAnnual:parseFloat(document.getElementById('higherBracketAnnual').value)||6000000,
+    annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1799376
   };
   saveStore();
   alert('Settings saved!');
