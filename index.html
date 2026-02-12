@@ -178,7 +178,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="nav-item" onclick="showPage('deductions')"><span class="icon">📋</span><span class="nav-text">Tax Summary</span></div>
       <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
     </nav>
-    <div class="sidebar-footer">HEART/NSTA Trust<br>Community Training</div>
+    <div class="sidebar-footer">C.E.S.T.I.S</div>
   </aside>
 
   <!-- Main Content -->
@@ -187,7 +187,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
     <!-- ===== DASHBOARD ===== -->
     <div id="page-dashboard" class="page active">
       <div class="page-header">
-        <div><h2>Payroll Dashboard</h2><div class="subtitle">Hazard Skills Training Centre — Overview</div></div>
+        <div><h2>Payroll Dashboard</h2><div class="subtitle">C.E.S.T.I.S — Overview</div></div>
         <div class="btn-group">
           <button class="btn btn-ghost" onclick="exportAllData()">📥 Export Data</button>
           <button class="btn btn-primary" onclick="showPage('payroll')">▶ Run Payroll</button>
@@ -364,7 +364,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
 
 <script>
 // ==================== DATA STORE ====================
-const STORAGE_KEY = 'hazardPayroll';
+const STORAGE_KEY = 'cestisPayroll';
 let DATA = loadStore();
 
 function defaultData(){
@@ -618,8 +618,7 @@ function generatePayslipPreview(){
 function buildPayslipHTML(emp,result,date,ytd){
   return `<div class="payslip-preview">
     <div class="ps-header">
-      <h2>HAZARD SKILLS TRAINING CENTRE</h2>
-      <p>HEART/NSTA Trust — Community Training Interventions</p>
+      <h2>C.E.S.T.I.S</h2>
       <p style="font-weight:600;margin-top:.5rem">EMPLOYEE PAY ADVICE SLIP</p>
     </div>
     <div class="ps-info">
@@ -740,7 +739,7 @@ function exportAllData(){
   const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`HazardSTC_Payroll_${new Date().toISOString().split('T')[0]}.json`;
+  a.download=`CESTIS_Payroll_${new Date().toISOString().split('T')[0]}.json`;
   a.click();URL.revokeObjectURL(a.href);
 }
 
