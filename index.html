@@ -179,9 +179,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .cloud-dropdown-item.danger:hover{background-color:rgba(239,68,68,0.1)}
 .cloud-dropdown-divider{height:1px;background:var(--border);margin:4px 0}
 .last-sync-info{padding:6px 16px;font-size:0.75rem;color:var(--text-muted)}
-.cloud-status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block}
-.cloud-status-dot.connected{background:var(--green)}
-.cloud-status-dot.syncing{background:var(--gold);animation:pulse 1s infinite}
+.cloud-status-dot{width:10px;height:10px;border-radius:50%;background:var(--text-muted);display:inline-block;flex-shrink:0}
+.cloud-status-dot.disconnected{background:var(--red)}
+.cloud-status-dot.connected{background:var(--green);box-shadow:0 0 6px var(--green)}
+.cloud-status-dot.syncing{background:var(--gold);animation:pulse 1s infinite;box-shadow:0 0 6px var(--gold)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .spinning{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
@@ -222,7 +223,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
         <button class="cloud-sync-btn" onclick="connectToGoogleDrive()">
           <span>☁️</span>
           <span class="nav-text" id="cloudStatusText">Not connected</span>
-          <span id="cloudStatusDot" class="cloud-status-dot"></span>
+          <span id="cloudStatusDot" class="cloud-status-dot disconnected"></span>
         </button>
       </div>
       <!-- Cloud Sync: Connected -->
@@ -231,6 +232,8 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <button class="cloud-sync-btn" onclick="toggleCloudMenu()">
             <span id="cloudMenuIcon">☁️</span>
             <span class="nav-text">Cloud</span>
+            <span id="cloudConnectedDot" class="cloud-status-dot connected"></span>
+            <span class="nav-text" id="cloudConnectedText" style="font-size:0.7rem;color:var(--green);">Connected</span>
             <span class="nav-text" style="font-size:0.6rem;">▼</span>
           </button>
           <div class="cloud-dropdown-content" id="cloudDropdownMenu">
@@ -1220,15 +1223,21 @@ function setCloudSyncing(syncing) {
     const statusDot = document.getElementById('cloudStatusDot');
     const statusText = document.getElementById('cloudStatusText');
     const menuIcon = document.getElementById('cloudMenuIcon');
+    const connectedDot = document.getElementById('cloudConnectedDot');
+    const connectedText = document.getElementById('cloudConnectedText');
 
     if (syncing) {
         if (statusDot) statusDot.className = 'cloud-status-dot syncing';
         if (statusText) statusText.textContent = 'Syncing...';
         if (menuIcon) menuIcon.innerHTML = '<span class="spinning">🔄</span>';
+        if (connectedDot) connectedDot.className = 'cloud-status-dot syncing';
+        if (connectedText) { connectedText.textContent = 'Syncing...'; connectedText.style.color = 'var(--gold)'; }
     } else {
         if (statusDot) statusDot.className = 'cloud-status-dot connected';
         if (statusText) statusText.textContent = 'Connected';
         if (menuIcon) menuIcon.textContent = '☁️';
+        if (connectedDot) connectedDot.className = 'cloud-status-dot connected';
+        if (connectedText) { connectedText.textContent = 'Connected'; connectedText.style.color = 'var(--green)'; }
     }
 }
 
