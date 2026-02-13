@@ -169,25 +169,46 @@ tr:hover td{background:rgba(59,130,246,.04)}
   .stats-row{grid-template-columns:1fr 1fr}
 }
 
-/* Cloud Sync Dropdown */
-.cloud-dropdown{position:relative;display:inline-block}
-.cloud-dropdown-content{display:none;position:absolute;left:0;bottom:100%;background:var(--card);min-width:200px;box-shadow:0 10px 25px rgba(0,0,0,0.3);border-radius:8px;z-index:1000;overflow:hidden;margin-bottom:4px;border:1px solid var(--border)}
-.cloud-dropdown-content.show{display:block}
-.cloud-dropdown-item{padding:10px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:0.85rem;color:var(--text);transition:background-color 0.2s}
-.cloud-dropdown-item:hover{background-color:var(--primary-glow)}
-.cloud-dropdown-item.danger{color:var(--danger)}
-.cloud-dropdown-item.danger:hover{background-color:rgba(239,68,68,0.1)}
-.cloud-dropdown-divider{height:1px;background:var(--border);margin:4px 0}
-.last-sync-info{padding:6px 16px;font-size:0.75rem;color:var(--text-muted)}
+/* Cloud Sync Section */
+.cloud-section-label{font-size:.65rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:.5rem}
+.cloud-status-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.35rem .5rem;background:var(--surface);border-radius:6px}
 .cloud-status-dot{width:10px;height:10px;border-radius:50%;background:var(--text-muted);display:inline-block;flex-shrink:0}
 .cloud-status-dot.disconnected{background:var(--red)}
 .cloud-status-dot.connected{background:var(--green);box-shadow:0 0 6px var(--green)}
 .cloud-status-dot.syncing{background:var(--gold);animation:pulse 1s infinite;box-shadow:0 0 6px var(--gold)}
+.cloud-status-label{font-size:.75rem;font-weight:600}
+.cloud-status-label.connected{color:var(--green)}
+.cloud-status-label.disconnected{color:var(--red)}
+.cloud-status-label.syncing{color:var(--gold)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .spinning{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Cloud Sync Button */
 .cloud-sync-btn{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.75rem;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-family:inherit;font-size:0.75rem;font-weight:500;transition:all 0.2s;width:100%}
 .cloud-sync-btn:hover{background:var(--primary-glow);border-color:var(--primary)}
+.cloud-sync-btn .btn-arrow{margin-left:auto;font-size:0.6rem;color:var(--text-muted)}
+
+/* Cloud Sync Info below button */
+.cloud-sync-meta{font-size:.65rem;color:var(--text-muted);margin-top:.4rem;padding:0 .25rem;line-height:1.4}
+
+/* Cloud Dropdown */
+.cloud-dropdown{position:relative;display:block;width:100%}
+.cloud-dropdown-content{display:none;position:absolute;left:0;bottom:100%;background:var(--card);min-width:220px;box-shadow:0 -8px 30px rgba(0,0,0,0.4);border-radius:10px;z-index:1000;overflow:hidden;margin-bottom:6px;border:1px solid var(--border)}
+.cloud-dropdown-content.show{display:block}
+.cloud-dropdown-item{padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:0.8rem;font-weight:600;color:#fff;transition:all 0.2s;border-radius:0}
+.cloud-dropdown-item:hover{filter:brightness(1.15)}
+.cloud-dropdown-item.save-cloud{background:linear-gradient(135deg,#ec4899,#f43f5e)}
+.cloud-dropdown-item.sync-cloud{background:linear-gradient(135deg,#10b981,#14b8a6)}
+.cloud-dropdown-item.merge-cloud{background:linear-gradient(135deg,#3b82f6,#8b5cf6)}
+.cloud-dropdown-item.browse-cloud{background:var(--surface);color:var(--text);font-weight:500}
+.cloud-dropdown-item.browse-cloud:hover{background:var(--primary-glow)}
+.cloud-dropdown-item.danger{background:none;color:var(--danger);font-weight:500}
+.cloud-dropdown-item.danger:hover{background:rgba(239,68,68,0.1)}
+.cloud-dropdown-divider{height:1px;background:var(--border);margin:2px 0}
+.last-sync-info{padding:6px 14px;font-size:0.7rem;color:var(--text-muted)}
+
+/* Google Auth Modal */
 .google-auth-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(4px)}
 .google-auth-modal .modal-content{background:var(--card);border:1px solid var(--border);border-radius:14px;width:90%;max-width:560px;max-height:85vh;overflow-y:auto}
 .google-auth-modal .modal-header{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)}
@@ -218,34 +239,42 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
     </nav>
     <div class="sidebar-footer" style="padding:0.75rem 1rem">
+      <div class="cloud-section-label nav-text">CLOUD SYNC</div>
+
       <!-- Cloud Sync: Not Connected -->
       <div id="cloudNotConnected">
+        <div class="cloud-status-row">
+          <span id="cloudStatusDot" class="cloud-status-dot disconnected"></span>
+          <span class="cloud-status-label disconnected nav-text" id="cloudStatusText">Not connected</span>
+        </div>
         <button class="cloud-sync-btn" onclick="connectToGoogleDrive()">
           <span>☁️</span>
-          <span class="nav-text" id="cloudStatusText">Not connected</span>
-          <span id="cloudStatusDot" class="cloud-status-dot disconnected"></span>
+          <span class="nav-text">Connect to Cloud</span>
         </button>
       </div>
+
       <!-- Cloud Sync: Connected -->
       <div id="cloudConnected" style="display:none;">
+        <div class="cloud-status-row">
+          <span id="cloudConnectedDot" class="cloud-status-dot connected"></span>
+          <span class="cloud-status-label connected nav-text" id="cloudConnectedText">Connected</span>
+        </div>
         <div class="cloud-dropdown">
           <button class="cloud-sync-btn" onclick="toggleCloudMenu()">
             <span id="cloudMenuIcon">☁️</span>
             <span class="nav-text">Cloud</span>
-            <span id="cloudConnectedDot" class="cloud-status-dot connected"></span>
-            <span class="nav-text" id="cloudConnectedText" style="font-size:0.7rem;color:var(--green);">Connected</span>
-            <span class="nav-text" style="font-size:0.6rem;">▼</span>
+            <span class="btn-arrow nav-text">▼</span>
           </button>
           <div class="cloud-dropdown-content" id="cloudDropdownMenu">
-            <div class="cloud-dropdown-item" onclick="saveToCloud()">
+            <div class="cloud-dropdown-item save-cloud" onclick="saveToCloud()">
               <span>💾</span>
               <span>Save to Cloud</span>
             </div>
-            <div class="cloud-dropdown-item" onclick="syncFromCloud()">
+            <div class="cloud-dropdown-item sync-cloud" onclick="syncFromCloud()">
               <span>🔄</span>
               <span>Sync from Cloud</span>
             </div>
-            <div class="cloud-dropdown-item" onclick="mergeFromCloud()">
+            <div class="cloud-dropdown-item merge-cloud" onclick="mergeFromCloud()">
               <span>🔀</span>
               <span>Merge from Cloud</span>
             </div>
@@ -253,7 +282,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
             <div class="last-sync-info" id="lastSyncInfo">
               Last sync: Never
             </div>
-            <div class="last-sync-info" id="lastSavedByInfo" style="font-size:0.7rem;">
+            <div class="last-sync-info" id="lastSavedByInfo">
               Last saved by: --
             </div>
             <div class="cloud-dropdown-divider"></div>
@@ -263,6 +292,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
             </div>
           </div>
         </div>
+        <div class="cloud-sync-meta nav-text" id="sidebarSyncInfo">Last sync: Never</div>
       </div>
     </div>
   </aside>
@@ -1220,24 +1250,21 @@ function updateCloudUI(connected) {
 
 // Update syncing status
 function setCloudSyncing(syncing) {
-    const statusDot = document.getElementById('cloudStatusDot');
-    const statusText = document.getElementById('cloudStatusText');
     const menuIcon = document.getElementById('cloudMenuIcon');
     const connectedDot = document.getElementById('cloudConnectedDot');
     const connectedText = document.getElementById('cloudConnectedText');
+    const sidebarSync = document.getElementById('sidebarSyncInfo');
 
     if (syncing) {
-        if (statusDot) statusDot.className = 'cloud-status-dot syncing';
-        if (statusText) statusText.textContent = 'Syncing...';
         if (menuIcon) menuIcon.innerHTML = '<span class="spinning">🔄</span>';
         if (connectedDot) connectedDot.className = 'cloud-status-dot syncing';
-        if (connectedText) { connectedText.textContent = 'Syncing...'; connectedText.style.color = 'var(--gold)'; }
+        if (connectedText) { connectedText.textContent = 'Syncing...'; connectedText.className = 'cloud-status-label syncing nav-text'; }
+        if (sidebarSync) sidebarSync.textContent = 'Syncing...';
     } else {
-        if (statusDot) statusDot.className = 'cloud-status-dot connected';
-        if (statusText) statusText.textContent = 'Connected';
         if (menuIcon) menuIcon.textContent = '☁️';
         if (connectedDot) connectedDot.className = 'cloud-status-dot connected';
-        if (connectedText) { connectedText.textContent = 'Connected'; connectedText.style.color = 'var(--green)'; }
+        if (connectedText) { connectedText.textContent = 'Connected'; connectedText.className = 'cloud-status-label connected nav-text'; }
+        updateLastSyncDisplay();
     }
 }
 
@@ -1839,13 +1866,10 @@ async function mergeFromCloud() {
 // ============ HELPER FUNCTIONS ============
 function updateLastSyncDisplay() {
     const lastSyncInfo = document.getElementById('lastSyncInfo');
-    if (lastSyncInfo) {
-        if (lastSyncTime) {
-            lastSyncInfo.textContent = 'Last sync: ' + getTimeAgo(lastSyncTime);
-        } else {
-            lastSyncInfo.textContent = 'Last sync: Never';
-        }
-    }
+    const sidebarSync = document.getElementById('sidebarSyncInfo');
+    const syncText = lastSyncTime ? 'Last sync: ' + getTimeAgo(lastSyncTime) : 'Last sync: Never';
+    if (lastSyncInfo) lastSyncInfo.textContent = syncText;
+    if (sidebarSync) sidebarSync.textContent = syncText;
 }
 
 function updateLastSavedByDisplay() {
