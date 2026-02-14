@@ -1550,6 +1550,10 @@ async function findExistingBackupFile() {
                 cloudFileId = data.files[0].id;
                 localStorage.setItem('schoolDashboardCloudFileId', cloudFileId);
                 console.log('Found existing backup file:', cloudFileId);
+            } else {
+                // No file found in the target folder — clear any stale reference
+                cloudFileId = null;
+                localStorage.removeItem('schoolDashboardCloudFileId');
             }
         }
     } catch (error) {
@@ -1617,10 +1621,9 @@ async function saveToCloud() {
     setCloudSyncing(true);
 
     try {
-        // Find existing backup file if we don't have a reference
-        if (!cloudFileId) {
-            await findExistingBackupFile();
-        }
+        // Always search the correct folder so a stale cloudFileId from an
+        // old/different folder is replaced with the right one.
+        await findExistingBackupFile();
 
         const backupData = {
             version: '1.0',
@@ -1660,6 +1663,17 @@ async function saveToCloud() {
                     body: multipartBody
                 }
             );
+
+            if (response.ok) {
+                // Verify the file is actually in the correct folder
+                const result = await response.json();
+                const parents = result.parents || [];
+                if (!parents.includes(GOOGLE_DRIVE_CONFIG.FOLDER_ID)) {
+                    console.warn('File saved to wrong folder. Creating new file in correct folder.');
+                    cloudFileId = null;
+                    localStorage.removeItem('schoolDashboardCloudFileId');
+                }
+            }
 
             // If the file no longer exists, clear the stale reference and create a new one
             if (response.status === 404) {
