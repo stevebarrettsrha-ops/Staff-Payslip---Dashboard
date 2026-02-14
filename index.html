@@ -1617,6 +1617,11 @@ async function saveToCloud() {
     setCloudSyncing(true);
 
     try {
+        // Find existing backup file if we don't have a reference
+        if (!cloudFileId) {
+            await findExistingBackupFile();
+        }
+
         const backupData = {
             version: '1.0',
             timestamp: new Date().toISOString(),
@@ -1630,18 +1635,33 @@ async function saveToCloud() {
         let response;
 
         if (cloudFileId) {
+            // Update existing file — use multipart to also update the file name
+            const updateMetadata = {
+                name: GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME
+            };
+            const formData = new FormData();
+            formData.append('metadata', new Blob([JSON.stringify(updateMetadata)], { type: 'application/json' }));
+            formData.append('file', blob);
+
             response = await fetch(
-                `https://www.googleapis.com/upload/drive/v3/files/${cloudFileId}?uploadType=media`,
+                `https://www.googleapis.com/upload/drive/v3/files/${cloudFileId}?uploadType=multipart&fields=id,name,parents`,
                 {
                     method: 'PATCH',
-                    headers: {
-                        'Authorization': `Bearer ${googleAccessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: blob
+                    headers: { 'Authorization': `Bearer ${googleAccessToken}` },
+                    body: formData
                 }
             );
-        } else {
+
+            // If the file no longer exists, clear the stale reference and create a new one
+            if (response.status === 404) {
+                console.warn('Stored cloud file not found (deleted?). Creating a new backup file.');
+                cloudFileId = null;
+                localStorage.removeItem('schoolDashboardCloudFileId');
+            }
+        }
+
+        if (!cloudFileId) {
+            // Create new file in the target folder
             const metadata = {
                 name: GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME,
                 parents: [GOOGLE_DRIVE_CONFIG.FOLDER_ID],
@@ -1653,7 +1673,7 @@ async function saveToCloud() {
             formData.append('file', blob);
 
             response = await fetch(
-                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents',
                 {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${googleAccessToken}` },
