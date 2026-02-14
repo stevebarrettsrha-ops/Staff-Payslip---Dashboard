@@ -147,6 +147,48 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .payslip-preview .ps-totals .box .val{font-size:1.1rem;font-weight:700;color:#1a2540;font-family:'JetBrains Mono',monospace;margin-top:.25rem}
 .payslip-preview .ps-footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;font-size:.7rem;color:#999;text-align:center}
 
+/* Quarter Tabs */
+.quarter-nav{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.quarter-year-select{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:.45rem .75rem;color:var(--text);font-family:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+.quarter-year-select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
+.quarter-tabs{display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.quarter-tab{padding:.55rem 1.25rem;background:var(--surface);color:var(--text-dim);font-size:.8rem;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .2s;position:relative}
+.quarter-tab:not(:last-child){border-right:1px solid var(--border)}
+.quarter-tab:hover{background:var(--primary-glow);color:var(--text)}
+.quarter-tab.active{background:var(--primary);color:#fff}
+.quarter-tab .q-badge{display:inline-block;margin-left:.4rem;font-size:.65rem;padding:1px 5px;border-radius:3px;font-weight:700;vertical-align:middle}
+.quarter-tab .q-badge.complete{background:rgba(16,185,129,.2);color:#10b981}
+.quarter-tab .q-badge.partial{background:rgba(245,158,11,.2);color:#fbbf24}
+.quarter-tab .q-badge.empty{background:rgba(100,116,139,.15);color:#64748b}
+.quarter-tab.active .q-badge.complete{background:rgba(255,255,255,.2);color:#fff}
+.quarter-tab.active .q-badge.partial{background:rgba(255,255,255,.2);color:#fff}
+.quarter-tab.active .q-badge.empty{background:rgba(255,255,255,.15);color:rgba(255,255,255,.7)}
+
+/* Month Cards */
+.month-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.25rem}
+.month-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;cursor:pointer;transition:all .2s;text-align:center;position:relative}
+.month-card:hover{border-color:var(--primary);background:var(--primary-glow)}
+.month-card.active{border-color:var(--primary);background:var(--primary-glow);box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+.month-card.completed{border-color:var(--green)}
+.month-card.completed::after{content:'';position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green)}
+.month-card .month-name{font-size:.85rem;font-weight:600;color:var(--text)}
+.month-card .month-status{font-size:.7rem;color:var(--text-muted);margin-top:.2rem}
+.month-card.completed .month-status{color:var(--green)}
+.month-card.active .month-name{color:var(--primary)}
+
+/* Quarter Summary Stats */
+.quarter-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin-bottom:1.25rem}
+.quarter-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem;text-align:center}
+.quarter-stat .qs-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600}
+.quarter-stat .qs-value{font-size:1.1rem;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:.2rem}
+
+/* Quarter History */
+.quarter-history{margin-top:1rem}
+.quarter-history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.quarter-history-header h4{font-size:.85rem;font-weight:600;color:var(--text-dim)}
+.payslip-link{color:var(--primary);cursor:pointer;font-size:.78rem;font-weight:600;text-decoration:none;transition:color .15s}
+.payslip-link:hover{color:#60a5fa;text-decoration:underline}
+
 /* Salary Records */
 #salaryRecordsTable table{min-width:1100px}
 #salaryRecordsTable th,#salaryRecordsTable td{padding:.45rem .5rem;font-size:.75rem}
@@ -372,8 +414,19 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-header">
         <div><h2>Process Payroll</h2><div class="subtitle">Calculate deductions and generate payslips</div></div>
       </div>
+
+      <!-- Quarter Navigation -->
+      <div class="quarter-nav" id="quarterNav"></div>
+
+      <!-- Month Cards -->
+      <div class="month-cards" id="monthCards"></div>
+
+      <!-- Quarter Summary Stats -->
+      <div class="quarter-stats" id="quarterStats"></div>
+
+      <!-- Payroll Input Form -->
       <div class="panel">
-        <div class="panel-head"><h3>Payroll Configuration</h3></div>
+        <div class="panel-head"><h3 id="payrollFormTitle">Payroll Configuration</h3></div>
         <div class="panel-body">
           <div class="form-grid">
             <div class="form-group">
@@ -398,6 +451,12 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="panel" id="payrollResultsPanel" style="display:none">
         <div class="panel-head"><h3>Payroll Results</h3><button class="btn btn-primary btn-sm" onclick="savePayrollRun()">💾 Save & Lock Payroll</button></div>
         <div class="panel-body"><div class="table-wrap" id="payrollResults"></div></div>
+      </div>
+
+      <!-- Quarter Payroll History -->
+      <div class="panel" id="quarterHistoryPanel">
+        <div class="panel-head"><h3 id="quarterHistoryTitle">Quarter Payroll History</h3></div>
+        <div class="panel-body"><div class="table-wrap" id="quarterHistory"></div></div>
       </div>
     </div>
 
@@ -700,11 +759,115 @@ function deleteEmployee(i){
 }
 
 // ==================== PAYROLL PROCESSING ====================
+const QUARTER_MONTHS=[
+  {q:1,label:'Q1',range:'Jan \u2013 Mar',months:[0,1,2],names:['January','February','March']},
+  {q:2,label:'Q2',range:'Apr \u2013 Jun',months:[3,4,5],names:['April','May','June']},
+  {q:3,label:'Q3',range:'Jul \u2013 Sep',months:[6,7,8],names:['July','August','September']},
+  {q:4,label:'Q4',range:'Oct \u2013 Dec',months:[9,10,11],names:['October','November','December']}
+];
+let payrollYear=new Date().getFullYear();
+let payrollQuarter=Math.floor(new Date().getMonth()/3); // 0-based index into QUARTER_MONTHS
+
+function getPayrollYears(){
+  const years=new Set();
+  DATA.payrollRuns.forEach(r=>{if(r.date)years.add(new Date(r.date).getFullYear());});
+  years.add(new Date().getFullYear());
+  return Array.from(years).sort((a,b)=>b-a);
+}
+
+function getQuarterRunsByMonth(year,qDef){
+  // Returns array of 3 elements (one per month in the quarter)
+  // Each element is the payroll run for that month or null
+  const result=[null,null,null];
+  DATA.payrollRuns.forEach(run=>{
+    const d=new Date(run.date);
+    if(d.getFullYear()!==year)return;
+    const m=d.getMonth();
+    const idx=qDef.months.indexOf(m);
+    if(idx>=0)result[idx]=run;
+  });
+  return result;
+}
+
 function renderPayrollInput(){
-  const today=new Date().toISOString().split('T')[0];
-  document.getElementById('payCycleDate').value=today;
+  const qDef=QUARTER_MONTHS[payrollQuarter];
+  const monthRuns=getQuarterRunsByMonth(payrollYear,qDef);
+
+  // Build quarter navigation
+  const years=getPayrollYears();
+  let navHtml=`<select class="quarter-year-select" id="payrollYearSelect" onchange="payrollYear=parseInt(this.value);renderPayrollInput()">`;
+  years.forEach(y=>{navHtml+=`<option value="${y}"${y===payrollYear?' selected':''}>${y}</option>`;});
+  navHtml+=`</select><div class="quarter-tabs">`;
+
+  QUARTER_MONTHS.forEach((q,qi)=>{
+    const qRuns=getQuarterRunsByMonth(payrollYear,q);
+    const filled=qRuns.filter(r=>r!==null).length;
+    let badgeClass='empty';
+    let badgeText='0/3';
+    if(filled===3){badgeClass='complete';badgeText='3/3';}
+    else if(filled>0){badgeClass='partial';badgeText=filled+'/3';}
+    navHtml+=`<button class="quarter-tab${qi===payrollQuarter?' active':''}" onclick="payrollQuarter=${qi};renderPayrollInput()">${q.label}<span class="q-badge ${badgeClass}">${badgeText}</span></button>`;
+  });
+  navHtml+=`</div>`;
+  document.getElementById('quarterNav').innerHTML=navHtml;
+
+  // Build month cards
+  let monthHtml='';
+  qDef.months.forEach((m,mi)=>{
+    const run=monthRuns[mi];
+    const isCompleted=run!==null;
+    const isActive=!isCompleted; // first uncompleted month is suggested
+    let statusText=isCompleted?'Payroll recorded':'Not yet recorded';
+    if(isCompleted){
+      const gross=run.results.reduce((s,r)=>s+r.gross,0);
+      statusText='Recorded \u2014 '+fmt(gross);
+    }
+    monthHtml+=`<div class="month-card${isCompleted?' completed':''}" onclick="selectPayrollMonth(${payrollYear},${m})" title="${isCompleted?'View recorded payroll':'Run payroll for '+qDef.names[mi]}">
+      <div class="month-name">${qDef.names[mi]}</div>
+      <div class="month-status">${statusText}</div>
+    </div>`;
+  });
+  document.getElementById('monthCards').innerHTML=monthHtml;
+
+  // Build quarter summary stats
+  let qGross=0,qNet=0,qDeductions=0,qErContr=0;
+  monthRuns.forEach(run=>{
+    if(!run)return;
+    run.results.forEach(r=>{
+      qGross+=r.gross;qNet+=r.netPay;qDeductions+=r.totalEmpDeductions;qErContr+=r.totalErContributions;
+    });
+  });
+  const filledCount=monthRuns.filter(r=>r!==null).length;
+  document.getElementById('quarterStats').innerHTML=`
+    <div class="quarter-stat"><div class="qs-label">${qDef.label} Gross</div><div class="qs-value" style="color:var(--primary)">${fmt(qGross)}</div></div>
+    <div class="quarter-stat"><div class="qs-label">${qDef.label} Net Pay</div><div class="qs-value" style="color:var(--green)">${fmt(qNet)}</div></div>
+    <div class="quarter-stat"><div class="qs-label">${qDef.label} Deductions</div><div class="qs-value" style="color:var(--red)">${fmt(qDeductions)}</div></div>
+    <div class="quarter-stat"><div class="qs-label">Months Recorded</div><div class="qs-value">${filledCount} / 3</div></div>
+  `;
+
+  // Update form title
+  // Find the first unrecorded month in the quarter as the default month
+  let defaultMonth=qDef.months[0];
+  for(let mi=0;mi<3;mi++){
+    if(!monthRuns[mi]){defaultMonth=qDef.months[mi];break;}
+  }
+  const defaultMonthName=MONTH_NAMES[defaultMonth];
+  document.getElementById('payrollFormTitle').textContent='Run Payroll \u2014 '+defaultMonthName+' '+payrollYear;
+
+  // Set date to end of the selected month
+  const lastDay=new Date(payrollYear,defaultMonth+1,0);
+  document.getElementById('payCycleDate').value=lastDay.toISOString().split('T')[0];
   document.getElementById('taxThreshold').value=DATA.settings.annualThreshold;
 
+  // Sync the form title when pay cycle date changes
+  document.getElementById('payCycleDate').onchange=function(){
+    const d=new Date(this.value);
+    if(!isNaN(d)){
+      document.getElementById('payrollFormTitle').textContent='Run Payroll \u2014 '+MONTH_NAMES[d.getMonth()]+' '+d.getFullYear();
+    }
+  };
+
+  // Employee gross input table
   let html='<table><thead><tr><th>#</th><th>Employee</th><th>Type</th><th>Default Salary</th><th>Gross Earnings This Cycle ($)</th></tr></thead><tbody>';
   DATA.employees.forEach((e,i)=>{
     html+=`<tr><td>${i+1}</td><td>${e.name}</td><td><span class="tag ${e.type==='FT'?'tag-ft':'tag-pt'}">${e.type}</span></td><td class="mono text-right">${fmt(e.salary)}</td><td><input type="number" step="0.01" id="grossInput_${i}" value="0" style="width:160px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:.4rem .6rem;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.82rem"></td></tr>`;
@@ -713,6 +876,99 @@ function renderPayrollInput(){
   html+='</tbody></table>';
   document.getElementById('payrollInput').innerHTML=html;
   document.getElementById('payrollResultsPanel').style.display='none';
+
+  // Render quarter history
+  renderQuarterHistory();
+}
+
+function selectPayrollMonth(year,month){
+  // Set the pay cycle date to the last day of the selected month
+  const lastDay=new Date(year,month+1,0);
+  document.getElementById('payCycleDate').value=lastDay.toISOString().split('T')[0];
+  document.getElementById('payrollFormTitle').textContent='Run Payroll \u2014 '+MONTH_NAMES[month]+' '+year;
+
+  // Check if this month already has payroll
+  const existingRun=DATA.payrollRuns.find(r=>{
+    const d=new Date(r.date);
+    return d.getFullYear()===year&&d.getMonth()===month;
+  });
+  if(existingRun){
+    // Show the existing run results
+    let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th><th>Payslip</th></tr></thead><tbody>';
+    let totals={gross:0,nis:0,ed:0,it:0,nht:0,heart:0,ded:0,net:0};
+    const runIdx=DATA.payrollRuns.indexOf(existingRun);
+    existingRun.results.forEach(r=>{
+      const empIdx=DATA.employees.findIndex(e=>e.name===r.empName);
+      html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.heartEr)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td><td>${empIdx>=0?'<span class="payslip-link" onclick="viewPayslipFromPayroll('+empIdx+','+runIdx+')">View Payslip</span>':''}</td></tr>`;
+      totals.gross+=r.gross;totals.nis+=r.nisEmp;totals.ed+=r.edTaxEmp;totals.it+=r.incomeTax;totals.nht+=r.nhtEmp;totals.heart+=r.heartEr;totals.ded+=r.totalEmpDeductions;totals.net+=r.netPay;
+    });
+    html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.heart)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td><td></td></tr>`;
+    html+='</tbody></table>';
+    document.getElementById('payrollResults').innerHTML=html;
+    document.getElementById('payrollResultsPanel').style.display='block';
+    document.getElementById('payrollResultsPanel').querySelector('.panel-head h3').textContent='Recorded Payroll \u2014 '+MONTH_NAMES[month]+' '+year;
+    // Hide the save button for already-recorded payrolls
+    const saveBtn=document.getElementById('payrollResultsPanel').querySelector('.btn-primary');
+    if(saveBtn)saveBtn.style.display='none';
+  }else{
+    document.getElementById('payrollResultsPanel').style.display='none';
+  }
+
+  // Highlight active month card
+  const cards=document.querySelectorAll('.month-card');
+  const qDef=QUARTER_MONTHS[payrollQuarter];
+  cards.forEach((card,i)=>{
+    card.classList.remove('active');
+    if(qDef.months[i]===month)card.classList.add('active');
+  });
+}
+
+function renderQuarterHistory(){
+  const qDef=QUARTER_MONTHS[payrollQuarter];
+  const monthRuns=getQuarterRunsByMonth(payrollYear,qDef);
+  document.getElementById('quarterHistoryTitle').textContent=qDef.label+' Payroll History \u2014 '+payrollYear;
+
+  let hasAny=monthRuns.some(r=>r!==null);
+  if(!hasAny){
+    document.getElementById('quarterHistory').innerHTML='<div style="text-align:center;color:var(--text-muted);padding:2rem">No payroll runs recorded for '+qDef.label+' '+payrollYear+'</div>';
+    return;
+  }
+
+  let html='<table><thead><tr><th>Month</th><th>Pay Date</th><th class="text-right">Gross</th><th class="text-right">Net Pay</th><th class="text-right">Emp Deductions</th><th class="text-right">Er Contributions</th><th>Employees</th><th>Actions</th></tr></thead><tbody>';
+  qDef.months.forEach((m,mi)=>{
+    const run=monthRuns[mi];
+    if(!run){
+      html+=`<tr><td>${qDef.names[mi]}</td><td colspan="6" style="color:var(--text-muted)">Not yet recorded</td><td><button class="btn btn-primary btn-sm" onclick="selectPayrollMonth(${payrollYear},${m})">Run Payroll</button></td></tr>`;
+      return;
+    }
+    const g=run.results.reduce((s,x)=>s+x.gross,0);
+    const n=run.results.reduce((s,x)=>s+x.netPay,0);
+    const ed=run.results.reduce((s,x)=>s+x.totalEmpDeductions,0);
+    const er=run.results.reduce((s,x)=>s+x.totalErContributions,0);
+    const runIdx=DATA.payrollRuns.indexOf(run);
+    html+=`<tr>
+      <td style="font-weight:600">${qDef.names[mi]}</td>
+      <td>${fmtDate(run.date)}</td>
+      <td class="mono text-right">${fmt(g)}</td>
+      <td class="mono text-right" style="color:var(--green)">${fmt(n)}</td>
+      <td class="mono text-right">${fmt(ed)}</td>
+      <td class="mono text-right">${fmt(er)}</td>
+      <td>${run.results.length}</td>
+      <td><span class="payslip-link" onclick="selectPayrollMonth(${payrollYear},${m})">View Details</span></td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('quarterHistory').innerHTML=html;
+}
+
+function viewPayslipFromPayroll(empIdx,runIdx){
+  // Navigate to payslips page with selections pre-filled
+  showPage('payslips');
+  setTimeout(()=>{
+    document.getElementById('payslipEmployee').value=empIdx;
+    document.getElementById('payslipCycle').value=runIdx;
+    generatePayslipPreview();
+  },50);
 }
 
 function fillDefaultSalaries(){
@@ -785,16 +1041,35 @@ function calculatePayroll(){
   html+='</tbody></table>';
   document.getElementById('payrollResults').innerHTML=html;
   document.getElementById('payrollResultsPanel').style.display='block';
+  document.getElementById('payrollResultsPanel').querySelector('.panel-head h3').textContent='Payroll Results';
+  // Show the save button
+  const saveBtn=document.getElementById('payrollResultsPanel').querySelector('.btn-primary');
+  if(saveBtn)saveBtn.style.display='';
   window._pendingPayroll={date:document.getElementById('payCycleDate').value,results};
 }
 
 function savePayrollRun(){
   if(!window._pendingPayroll){alert('Calculate payroll first');return;}
+
+  // Check if a payroll already exists for this month
+  const pendingDate=new Date(window._pendingPayroll.date);
+  const pendingMonth=pendingDate.getMonth();
+  const pendingYear=pendingDate.getFullYear();
+  const existing=DATA.payrollRuns.find(r=>{
+    const d=new Date(r.date);
+    return d.getFullYear()===pendingYear&&d.getMonth()===pendingMonth;
+  });
+  if(existing){
+    if(!confirm('A payroll run already exists for '+MONTH_NAMES[pendingMonth]+' '+pendingYear+'. Replace it?'))return;
+    const idx=DATA.payrollRuns.indexOf(existing);
+    DATA.payrollRuns.splice(idx,1);
+  }
+
   DATA.payrollRuns.push(window._pendingPayroll);
   saveStore();
   window._pendingPayroll=null;
   alert('Payroll saved successfully!');
-  showPage('dashboard');
+  renderPayrollInput(); // Refresh to show updated quarter status
 }
 
 // ==================== PAYSLIPS ====================
@@ -997,10 +1272,10 @@ function renderSalaryRecords(){
 
 function renderQuarterlyTables(year,monthly,empNames){
   const quarters=[
-    {label:'Q1 (Jan–Mar)',months:[0,1,2]},
-    {label:'Q2 (Apr–Jun)',months:[3,4,5]},
-    {label:'Q3 (Jul–Sep)',months:[6,7,8]},
-    {label:'Q4 (Oct–Dec)',months:[9,10,11]}
+    {label:'Q1 (Jan\u2013Mar)',months:[0,1,2]},
+    {label:'Q2 (Apr\u2013Jun)',months:[3,4,5]},
+    {label:'Q3 (Jul\u2013Sep)',months:[6,7,8]},
+    {label:'Q4 (Oct\u2013Dec)',months:[9,10,11]}
   ];
 
   // Aggregated quarterly summary
