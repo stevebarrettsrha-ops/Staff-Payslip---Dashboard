@@ -1630,25 +1630,34 @@ async function saveToCloud() {
         };
 
         const jsonContent = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([jsonContent], { type: 'application/json' });
 
         let response;
 
         if (cloudFileId) {
-            // Update existing file — use multipart to also update the file name
+            // Update existing file — use multipart/related to update both metadata and content
+            const boundary = 'boundary_' + Date.now();
             const updateMetadata = {
                 name: GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME
             };
-            const formData = new FormData();
-            formData.append('metadata', new Blob([JSON.stringify(updateMetadata)], { type: 'application/json' }));
-            formData.append('file', blob);
+
+            const multipartBody =
+                '--' + boundary + '\r\n' +
+                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+                JSON.stringify(updateMetadata) + '\r\n' +
+                '--' + boundary + '\r\n' +
+                'Content-Type: application/json\r\n\r\n' +
+                jsonContent + '\r\n' +
+                '--' + boundary + '--';
 
             response = await fetch(
                 `https://www.googleapis.com/upload/drive/v3/files/${cloudFileId}?uploadType=multipart&fields=id,name,parents`,
                 {
                     method: 'PATCH',
-                    headers: { 'Authorization': `Bearer ${googleAccessToken}` },
-                    body: formData
+                    headers: {
+                        'Authorization': `Bearer ${googleAccessToken}`,
+                        'Content-Type': 'multipart/related; boundary=' + boundary
+                    },
+                    body: multipartBody
                 }
             );
 
@@ -1662,22 +1671,31 @@ async function saveToCloud() {
 
         if (!cloudFileId) {
             // Create new file in the target folder
+            const boundary = 'boundary_' + Date.now();
             const metadata = {
                 name: GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME,
                 parents: [GOOGLE_DRIVE_CONFIG.FOLDER_ID],
                 mimeType: 'application/json'
             };
 
-            const formData = new FormData();
-            formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            formData.append('file', blob);
+            const multipartBody =
+                '--' + boundary + '\r\n' +
+                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+                JSON.stringify(metadata) + '\r\n' +
+                '--' + boundary + '\r\n' +
+                'Content-Type: application/json\r\n\r\n' +
+                jsonContent + '\r\n' +
+                '--' + boundary + '--';
 
             response = await fetch(
                 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents',
                 {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${googleAccessToken}` },
-                    body: formData
+                    headers: {
+                        'Authorization': `Bearer ${googleAccessToken}`,
+                        'Content-Type': 'multipart/related; boundary=' + boundary
+                    },
+                    body: multipartBody
                 }
             );
 
