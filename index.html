@@ -3350,13 +3350,7 @@ function doLogin(){
   console.log('[Login] Attempting login for:',username,'| Available users:',users.map(function(u){return u.username;}));
   const user=users.find(u=>u.username.toLowerCase()===username&&u.password===password);
   if(!user){
-    // Check if username exists but password wrong
-    const nameExists=users.some(u=>u.username.toLowerCase()===username);
-    if(nameExists){
-      errEl.textContent='Incorrect password. Please try again.';
-    }else{
-      errEl.innerHTML='User not found. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Try clicking "Sync Credentials from Cloud" below, or contact your administrator.</span>';
-    }
+    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Try clicking "Sync Credentials from Cloud" below if you are a new user, or contact your administrator.</span>';
     errEl.style.display='block';return;
   }
   errEl.style.display='none';
