@@ -106,21 +106,25 @@ tr:hover td{background:rgba(59,130,246,.04)}
 /* Payslip Print */
 .payslip-container{display:none}
 @media print{
-  @page{size:A4 portrait;margin:10mm 12mm}
-  body *{visibility:hidden}
+  @page{size:A4 portrait;margin:8mm 10mm}
+  html,body{margin:0!important;padding:0!important;height:auto!important;overflow:visible!important}
+  body *{visibility:hidden;margin:0;padding:0}
   .payslip-container,.payslip-container *{visibility:visible!important}
-  .payslip-container{display:block!important;position:fixed;top:0;left:0;width:100%;background:#fff;z-index:9999;padding:0}
-  .payslip-print{padding:0;max-width:100%;page-break-inside:avoid}
-  .payslip-print .ps-header{padding-bottom:.5rem;margin-bottom:.75rem}
-  .payslip-print .ps-info{gap:.25rem;margin-bottom:.75rem;font-size:.78rem}
-  .payslip-print .ps-table{margin-bottom:.75rem}
-  .payslip-print .ps-table th{padding:.35rem .5rem;font-size:.7rem}
-  .payslip-print .ps-table td{padding:.3rem .5rem;font-size:.78rem}
-  .payslip-print .ps-table .amt{font-size:.75rem}
-  .payslip-print .ps-totals{gap:.75rem;margin-top:.75rem;padding-top:.5rem}
-  .payslip-print .ps-totals .box{padding:.5rem}
-  .payslip-print .ps-totals .box .val{font-size:1rem;margin-top:.15rem}
-  .payslip-print .ps-footer{margin-top:1rem;padding-top:.5rem}
+  .payslip-container{display:block!important;position:absolute;top:0;left:0;width:100%;background:#fff;z-index:9999;margin:0;padding:0;overflow:hidden}
+  .payslip-print{padding:0!important;margin:0!important;max-width:100%!important;page-break-inside:avoid;break-inside:avoid}
+  .payslip-print .ps-header{padding-bottom:.4rem;margin-bottom:.5rem}
+  .payslip-print .ps-header p{margin-top:.1rem!important;margin-bottom:.1rem!important;font-size:.75rem!important}
+  .payslip-print .ps-info{gap:.15rem;margin-bottom:.5rem;font-size:.72rem}
+  .payslip-print .ps-info .lbl{min-width:90px}
+  .payslip-print .ps-table{margin-bottom:.4rem}
+  .payslip-print .ps-table th{padding:.25rem .4rem;font-size:.65rem}
+  .payslip-print .ps-table td{padding:.2rem .4rem;font-size:.72rem}
+  .payslip-print .ps-table .amt{font-size:.7rem}
+  .payslip-print .ps-totals{gap:.5rem;margin-top:.5rem;padding-top:.4rem}
+  .payslip-print .ps-totals .box{padding:.35rem}
+  .payslip-print .ps-totals .box .lbl{font-size:.6rem}
+  .payslip-print .ps-totals .box .val{font-size:.85rem;margin-top:.1rem}
+  .payslip-print .ps-footer{margin-top:.5rem;padding-top:.3rem;font-size:.6rem}
 }
 .payslip-print{background:#fff;color:#000;padding:2rem;max-width:700px;margin:0 auto;font-family:'DM Sans',sans-serif}
 .payslip-print .ps-header{text-align:center;border-bottom:3px solid #1a2540;padding-bottom:1rem;margin-bottom:1.5rem}
