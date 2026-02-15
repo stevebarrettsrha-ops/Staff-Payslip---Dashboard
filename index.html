@@ -557,7 +557,11 @@ tr:hover td{background:rgba(59,130,246,.04)}
         <div><h2>Settings</h2><div class="subtitle">Tax rates and system configuration</div></div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h3>Jamaican Statutory Deduction Rates</h3></div>
+        <div class="panel-head">
+          <h3>Jamaican Statutory Deduction Rates</h3>
+          <button class="btn btn-primary" onclick="fetchCurrentRates()" id="fetchRatesBtn">🌐 Fetch Current Rates</button>
+        </div>
+        <div id="ratesFetchStatus" style="display:none;padding:.75rem 1.25rem;font-size:.85rem;border-bottom:1px solid var(--border);"></div>
         <div class="panel-body">
           <div class="form-grid">
             <div class="form-group"><label>NIS Employee Rate (%)</label><input type="number" id="rateNISEmp" value="3" step="0.1"></div>
@@ -1485,6 +1489,80 @@ function saveSettings(){
   };
   saveStore();
   alert('Settings saved!');
+}
+
+// ==================== FETCH CURRENT RATES ====================
+const RATES_JSON_URL = 'https://raw.githubusercontent.com/stevebarrettsrha-ops/Staff-Payslip---Dashboard/main/rates.json';
+
+async function fetchCurrentRates(){
+  const btn = document.getElementById('fetchRatesBtn');
+  const statusDiv = document.getElementById('ratesFetchStatus');
+
+  // Show loading state
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching...';
+  statusDiv.style.display = 'block';
+  statusDiv.style.background = 'var(--primary-glow)';
+  statusDiv.style.color = 'var(--text)';
+  statusDiv.textContent = 'Fetching latest Jamaican statutory deduction rates...';
+
+  try {
+    const response = await fetch(RATES_JSON_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Network response ' + response.status);
+    const data = await response.json();
+
+    if (!data.rates) throw new Error('Invalid rates data format');
+
+    const r = data.rates;
+    const fieldMap = {
+      rateNISEmp: r.nisEmp,
+      rateNISEr: r.nisEr,
+      nisCeilingMonthly: r.nisCeilingMonthly,
+      rateEdTaxEmp: r.edTaxEmp,
+      rateEdTaxEr: r.edTaxEr,
+      rateNHTEmp: r.nhtEmp,
+      rateNHTEr: r.nhtEr,
+      rateHeartEr: r.heartEr,
+      rateIncomeTax: r.incomeTax,
+      rateIncomeTaxHigher: r.incomeTaxHigher,
+      higherBracketAnnual: r.higherBracketAnnual,
+      annualThreshold: r.annualThreshold
+    };
+
+    // Count how many fields changed
+    let changedCount = 0;
+    for (const [id, val] of Object.entries(fieldMap)) {
+      if (val !== undefined && val !== null) {
+        const el = document.getElementById(id);
+        if (el && parseFloat(el.value) !== val) {
+          el.value = val;
+          el.style.outline = '2px solid var(--accent2)';
+          setTimeout(() => { el.style.outline = ''; }, 3000);
+          changedCount++;
+        } else if (el) {
+          el.value = val;
+        }
+      }
+    }
+
+    // Show success status
+    const fy = data.fiscalYear || 'N/A';
+    const effective = data.effectiveDate || 'N/A';
+    const updated = data.lastUpdated || 'N/A';
+    statusDiv.style.background = 'rgba(16,185,129,0.1)';
+    statusDiv.style.color = 'var(--accent2)';
+    statusDiv.innerHTML = '✅ Rates loaded — <strong>Fiscal Year ' + fy + '</strong> (effective ' + effective + ', last updated ' + updated + '). ' +
+      (changedCount > 0 ? changedCount + ' field(s) updated.' : 'All fields already current.') +
+      ' <em>Click "Save Settings" to apply.</em>';
+
+  } catch (err) {
+    statusDiv.style.background = 'rgba(239,68,68,0.1)';
+    statusDiv.style.color = 'var(--danger)';
+    statusDiv.textContent = '❌ Failed to fetch rates: ' + err.message + '. Please check your internet connection or update rates manually.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🌐 Fetch Current Rates';
+  }
 }
 
 // ==================== PRESET DATA ====================
