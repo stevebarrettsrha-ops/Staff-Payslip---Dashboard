@@ -298,6 +298,28 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .btn-browse-delete:hover{background:rgba(239,68,68,0.2)}
 .browse-folder-link{display:inline-flex;align-items:center;gap:6px;margin-top:1rem;padding:8px 14px;font-size:0.8rem;font-weight:600;color:var(--primary);background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;text-decoration:none;transition:all 0.15s}
 .browse-folder-link:hover{background:rgba(59,130,246,0.15);border-color:var(--primary)}
+
+/* Cloud Sync Notification Popup */
+.cloud-notify{position:fixed;top:1.25rem;right:1.25rem;z-index:9999;width:370px;max-width:calc(100vw - 2rem);background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);transform:translateX(120%);transition:transform .4s cubic-bezier(.22,1,.36,1);overflow:hidden}
+.cloud-notify.show{transform:translateX(0)}
+.cloud-notify.warn{border-color:var(--gold)}
+.cloud-notify.error{border-color:var(--danger)}
+.cloud-notify-bar{height:4px;width:100%}
+.cloud-notify.warn .cloud-notify-bar{background:var(--gold)}
+.cloud-notify.error .cloud-notify-bar{background:var(--danger)}
+.cloud-notify-body{padding:1rem 1.25rem;display:flex;gap:.75rem;align-items:flex-start}
+.cloud-notify-icon{font-size:1.6rem;flex-shrink:0;line-height:1}
+.cloud-notify-content{flex:1;min-width:0}
+.cloud-notify-title{font-size:.9rem;font-weight:700;margin-bottom:.3rem}
+.cloud-notify.warn .cloud-notify-title{color:var(--gold)}
+.cloud-notify.error .cloud-notify-title{color:var(--danger)}
+.cloud-notify-msg{font-size:.8rem;color:var(--text-dim);line-height:1.45}
+.cloud-notify-close{background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;padding:0;line-height:1;flex-shrink:0}
+.cloud-notify-close:hover{color:var(--text)}
+.cloud-notify-actions{padding:0 1.25rem 1rem;display:flex;gap:.5rem}
+.cloud-notify-actions .btn{font-size:.8rem;padding:.45rem .9rem}
+@keyframes notifyCountdown{from{width:100%}to{width:0%}}
+.cloud-notify-timer{height:3px;background:var(--text-muted);opacity:.3;border-radius:0 0 14px 14px}
 </style>
 </head>
 <body>
@@ -2572,11 +2594,145 @@ function getTimeAgo(date) {
     return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
 }
 
+// ==================== CLOUD CONNECTIVITY NOTIFICATIONS ====================
+let cloudNotifyTimer = null;
+let cloudCheckInterval = null;
+
+function showCloudNotification(type, title, message, showConnect, autoDismissSec){
+  // Remove any existing notification
+  dismissCloudNotification();
+
+  const el = document.createElement('div');
+  el.id = 'cloudNotifyPopup';
+  el.className = 'cloud-notify ' + type;
+  const icon = type === 'error' ? '⚠️' : type === 'warn' ? '🔌' : '☁️';
+  el.innerHTML =
+    '<div class="cloud-notify-bar"></div>' +
+    '<div class="cloud-notify-body">' +
+      '<div class="cloud-notify-icon">' + icon + '</div>' +
+      '<div class="cloud-notify-content">' +
+        '<div class="cloud-notify-title">' + title + '</div>' +
+        '<div class="cloud-notify-msg">' + message + '</div>' +
+      '</div>' +
+      '<button class="cloud-notify-close" onclick="dismissCloudNotification()">&times;</button>' +
+    '</div>' +
+    '<div class="cloud-notify-actions">' +
+      (showConnect ? '<button class="btn btn-success" onclick="dismissCloudNotification();connectToGoogleDrive()">Connect Now</button>' : '') +
+      '<button class="btn btn-ghost" onclick="dismissCloudNotification()">Dismiss</button>' +
+    '</div>' +
+    (autoDismissSec ? '<div class="cloud-notify-timer" style="animation:notifyCountdown ' + autoDismissSec + 's linear forwards"></div>' : '');
+
+  document.body.appendChild(el);
+  // Trigger slide-in
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ el.classList.add('show'); }); });
+
+  if (autoDismissSec) {
+    cloudNotifyTimer = setTimeout(dismissCloudNotification, autoDismissSec * 1000);
+  }
+}
+
+function dismissCloudNotification(){
+  clearTimeout(cloudNotifyTimer);
+  cloudNotifyTimer = null;
+  const el = document.getElementById('cloudNotifyPopup');
+  if (el) {
+    el.classList.remove('show');
+    setTimeout(function(){ el.remove(); }, 400);
+  }
+}
+
+// Check cloud connection state and notify if needed
+function checkCloudAndNotify(reason){
+  // Don't nag if user has never connected (no saved token at all and no saved file)
+  const hasEverConnected = localStorage.getItem('schoolDashboardGoogleAccessToken') ||
+                           localStorage.getItem('schoolDashboardCloudFileId') ||
+                           localStorage.getItem('schoolDashboardLastSyncTime');
+  if (!hasEverConnected) return;
+
+  if (!navigator.onLine) {
+    showCloudNotification('error', 'You Are Offline',
+      'Your internet connection is unavailable. Data changes will only be saved locally. Please reconnect to sync with Google Drive.',
+      false, 0);
+    return;
+  }
+
+  if (!isCloudConnected) {
+    const savedExpiry = localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+    const lastSync = localStorage.getItem('schoolDashboardLastSyncTime');
+    let detail = '';
+
+    if (savedExpiry && new Date(savedExpiry) <= new Date()) {
+      detail = 'Your Google Drive session has expired.';
+    } else if (reason === 'page_load') {
+      detail = 'Google Drive is not connected.';
+    } else if (reason === 'token_expired') {
+      detail = 'Your Google Drive session has expired.';
+    } else {
+      detail = 'Google Drive connection was lost.';
+    }
+
+    if (lastSync) {
+      detail += ' Last sync: ' + getTimeAgo(new Date(lastSync)) + '.';
+    }
+
+    showCloudNotification('warn', 'Cloud Sync Disconnected',
+      detail + ' Your data is only saved locally. Connect to Google Drive to back up and sync your data.',
+      true, 30);
+  }
+}
+
+// Monitor token expiry in real time
+function startCloudMonitor(){
+  // Clear any previous interval
+  if (cloudCheckInterval) clearInterval(cloudCheckInterval);
+
+  // Check every 60 seconds if the token has expired
+  cloudCheckInterval = setInterval(function(){
+    if (isCloudConnected && googleAccessToken) {
+      const savedExpiry = localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+      if (savedExpiry && new Date(savedExpiry) <= new Date()) {
+        // Token just expired
+        googleAccessToken = null;
+        isCloudConnected = false;
+        updateCloudUI(false);
+        checkCloudAndNotify('token_expired');
+      }
+    }
+  }, 60000);
+}
+
+// Listen for browser online/offline events
+window.addEventListener('offline', function(){
+  showCloudNotification('error', 'You Are Offline',
+    'Internet connection lost. Data changes will only be saved locally until you reconnect.',
+    false, 0);
+});
+
+window.addEventListener('online', function(){
+  dismissCloudNotification();
+  if (!isCloudConnected) {
+    // Back online but cloud not connected — prompt to reconnect
+    setTimeout(function(){
+      checkCloudAndNotify('reconnected');
+    }, 1500);
+  } else {
+    showCloudNotification('warn', 'Back Online',
+      'Internet connection restored. Your cloud sync is active.',
+      false, 8);
+  }
+});
+
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded',function(){
     renderDashboard();
     initializeCloudSync();
     setTimeout(function(){ initGoogleAuth(); }, 500);
+
+    // After init, check cloud status and notify if disconnected
+    setTimeout(function(){
+      checkCloudAndNotify('page_load');
+      startCloudMonitor();
+    }, 2000);
 });
 </script>
 </body>
