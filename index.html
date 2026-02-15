@@ -551,24 +551,23 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <button class="btn btn-ghost" onclick="exportSalaryRecordsCSV()">📥 Export CSV</button>
         </div>
       </div>
+
+      <!-- Quarter Navigation -->
+      <div class="quarter-nav" id="srQuarterNav"></div>
+
       <div class="panel">
-        <div class="panel-head">
-          <h3>Select Fiscal Year</h3>
-          <div class="form-group" style="margin:0;min-width:160px">
-            <select id="salaryRecordYear" onchange="renderSalaryRecords()"></select>
-          </div>
-        </div>
+        <div class="panel-head"><h3 id="srTableTitle">Monthly Salary Records</h3></div>
         <div class="panel-body">
           <div class="table-wrap" id="salaryRecordsTable" style="font-size:.8rem"></div>
         </div>
       </div>
       <div class="stats-row" id="salaryRecordStats"></div>
-      <div class="panel">
-        <div class="panel-head"><h3>Quarterly Summary</h3></div>
+      <div class="panel" id="quarterlySummaryPanel">
+        <div class="panel-head"><h3 id="quarterlySummaryTitle">Quarterly Summary</h3></div>
         <div class="panel-body"><div class="table-wrap" id="quarterlyTable"></div></div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h3>Per-Employee Quarterly Breakdown</h3></div>
+      <div class="panel" id="empQuarterlyPanel">
+        <div class="panel-head"><h3 id="empQuarterlyTitle">Per-Employee Quarterly Breakdown</h3></div>
         <div class="panel-body"><div class="table-wrap" id="empQuarterlyTable"></div></div>
       </div>
     </div>
@@ -1233,27 +1232,15 @@ function printPayslip(){
 // ==================== SALARY RECORDS ====================
 const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function getSalaryRecordYears(){
-  const years=new Set();
-  DATA.payrollRuns.forEach(r=>{
-    if(r.date){const y=parseLocalDate(r.date).getFullYear();if(!isNaN(y))years.add(y);}
-  });
-  if(years.size===0)years.add(new Date().getFullYear());
-  return Array.from(years).sort((a,b)=>b-a);
-}
-
 function parseLocalDate(dateStr){
-  // Parse YYYY-MM-DD as local time (not UTC) to avoid timezone off-by-one issues
   if(!dateStr)return new Date(NaN);
   const parts=dateStr.split('T')[0].split('-');
   return new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
 }
 
 function getMonthlyData(year){
-  // Build month-by-month data for each employee from payroll runs
-  const monthly={}; // empName -> [12 months of data]
-  // Build a lookup map for case-insensitive/trimmed name matching
-  const nameLookup={}; // lowercase trimmed name -> canonical key in monthly
+  const monthly={};
+  const nameLookup={};
   DATA.employees.forEach(e=>{
     monthly[e.name]=Array.from({length:12},()=>null);
     nameLookup[e.name.trim().toLowerCase()]=e.name;
@@ -1264,223 +1251,298 @@ function getMonthlyData(year){
     const m=d.getMonth();
     run.results.forEach(r=>{
       if(!r.empName)return;
-      // Resolve the canonical name: exact match first, then case-insensitive/trimmed
       let key=r.empName;
       if(!monthly[key]){
         const normalized=r.empName.trim().toLowerCase();
-        if(nameLookup[normalized]){
-          key=nameLookup[normalized];
-        }else{
-          // Employee exists in payroll data but not in current employee list — include them
-          monthly[r.empName]=Array.from({length:12},()=>null);
-          nameLookup[r.empName.trim().toLowerCase()]=r.empName;
-          key=r.empName;
-        }
+        if(nameLookup[normalized]){key=nameLookup[normalized];}
+        else{monthly[r.empName]=Array.from({length:12},()=>null);nameLookup[r.empName.trim().toLowerCase()]=r.empName;key=r.empName;}
       }
-      monthly[key][m]={
-        gross:r.gross,netPay:r.netPay,
-        nisEmp:r.nisEmp,nisEr:r.nisEr,
-        edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,
-        nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,
-        heartEr:r.heartEr||0,
-        incomeTax:r.incomeTax,
-        totalEmpDeductions:r.totalEmpDeductions,
-        totalErContributions:r.totalErContributions
-      };
+      monthly[key][m]={gross:r.gross,netPay:r.netPay,nisEmp:r.nisEmp,nisEr:r.nisEr,edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,heartEr:r.heartEr||0,incomeTax:r.incomeTax,totalEmpDeductions:r.totalEmpDeductions,totalErContributions:r.totalErContributions};
     });
   });
   return monthly;
 }
 
+// Salary Records FY/Quarter state and navigation
+const FY_MONTH_NAMES=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+let srFYStartYear=fyStartYear;
+let srQuarter=-1; // -1=All, 0=Q1, 1=Q2, 2=Q3, 3=Q4
+
+function getFYMonthlyData(fyStart){
+  const dataY1=getMonthlyData(fyStart);
+  const dataY2=getMonthlyData(fyStart+1);
+  const allNames=new Set([...Object.keys(dataY1),...Object.keys(dataY2)]);
+  const fyData={};
+  allNames.forEach(name=>{
+    const d1=dataY1[name]||Array.from({length:12},()=>null);
+    const d2=dataY2[name]||Array.from({length:12},()=>null);
+    fyData[name]=[d1[3],d1[4],d1[5],d1[6],d1[7],d1[8],d1[9],d1[10],d1[11],d2[0],d2[1],d2[2]];
+  });
+  return fyData;
+}
+
+function changeSRFY(delta){srFYStartYear+=delta;renderSalaryRecords();}
+function changeSRQuarter(delta){
+  srQuarter+=delta;
+  if(srQuarter>3){srQuarter=-1;srFYStartYear++;}
+  if(srQuarter<-1){srQuarter=3;srFYStartYear--;}
+  renderSalaryRecords();
+}
+function setSRQuarter(qi){srQuarter=qi;renderSalaryRecords();}
+
 function renderSalaryRecords(){
-  const yearSel=document.getElementById('salaryRecordYear');
-  const years=getSalaryRecordYears();
-  const prevVal=yearSel.value;
-  yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');
-  if(prevVal&&years.includes(parseInt(prevVal)))yearSel.value=prevVal;
+  // Build quarter navigation (matches payroll page style)
+  let navHtml='<div class="fy-selector">';
+  navHtml+='<button class="fy-arrow" onclick="changeSRFY(-1)" title="Previous Fiscal Year">\u25C4</button>';
+  navHtml+='<span class="fy-label">'+getFYLabel(srFYStartYear)+'</span>';
+  navHtml+='<button class="fy-arrow" onclick="changeSRFY(1)" title="Next Fiscal Year">\u25BA</button>';
+  navHtml+='</div><div class="quarter-tabs">';
+  navHtml+='<button class="quarter-tab'+(srQuarter===-1?' active':'')+'" onclick="setSRQuarter(-1)">All<span class="q-sub">\u00B7 Full Year</span></button>';
+  QUARTER_MONTHS.forEach(function(q,qi){
+    navHtml+='<button class="quarter-tab'+(qi===srQuarter?' active':'')+'" onclick="setSRQuarter('+qi+')">'+q.label+'<span class="q-sub">\u00B7 '+q.sub+'</span></button>';
+  });
+  navHtml+='</div><div class="qtr-nav-btns">';
+  navHtml+='<button class="qtr-nav-btn" onclick="changeSRQuarter(-1)">\u25C4 Prev Qtr</button>';
+  navHtml+='<button class="qtr-nav-btn" onclick="changeSRQuarter(1)">Next Qtr \u25BA</button>';
+  navHtml+='</div>';
+  document.getElementById('srQuarterNav').innerHTML=navHtml;
 
-  const year=parseInt(yearSel.value);
-  const monthly=getMonthlyData(year);
-  // Include all employees: current list + any found only in payroll data
-  const empNames=Object.keys(monthly);
+  var fyMonthly=getFYMonthlyData(srFYStartYear);
+  var empNames=Object.keys(fyMonthly);
+  var displayIndices,displayNames,totalLabel,periodLabel;
+  if(srQuarter===-1){
+    displayIndices=[0,1,2,3,4,5,6,7,8,9,10,11];
+    displayNames=FY_MONTH_NAMES;
+    totalLabel='Annual Total';
+    periodLabel=getFYLabel(srFYStartYear);
+  }else{
+    var si=srQuarter*3;
+    displayIndices=[si,si+1,si+2];
+    displayNames=[FY_MONTH_NAMES[si],FY_MONTH_NAMES[si+1],FY_MONTH_NAMES[si+2]];
+    totalLabel=QUARTER_MONTHS[srQuarter].label+' Total';
+    periodLabel=QUARTER_MONTHS[srQuarter].label+' \u2014 '+getFYLabel(srFYStartYear);
+  }
 
-  // Main monthly gross table
-  let html='<table><thead><tr><th>Employee</th>';
-  MONTH_NAMES.forEach(m=>{html+=`<th class="text-right">${m}</th>`;});
-  html+='<th class="text-right" style="background:rgba(59,130,246,.15);color:#60a5fa">Annual Total</th></tr></thead><tbody>';
+  document.getElementById('srTableTitle').textContent=
+    srQuarter===-1?'Monthly Salary Records \u2014 '+getFYLabel(srFYStartYear)
+                  :QUARTER_MONTHS[srQuarter].label+' Salary Records \u2014 '+getFYLabel(srFYStartYear);
 
-  let grandMonthly=Array.from({length:12},()=>0);
-  let grandAnnual=0;
+  var colCount=displayIndices.length+2;
+  var html='<table><thead><tr><th>Employee</th>';
+  displayNames.forEach(function(m){html+='<th class="text-right">'+m+'</th>';});
+  html+='<th class="text-right" style="background:rgba(59,130,246,.15);color:#60a5fa">'+totalLabel+'</th></tr></thead><tbody>';
 
-  empNames.forEach(name=>{
-    const emp=DATA.employees.find(e=>e.name===name);
-    const data=monthly[name];
-    let annualTotal=0;
-    const typeTag=emp?`<span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span>`:'';
-    html+=`<tr><td>${name} ${typeTag}</td>`;
-    for(let m=0;m<12;m++){
-      const val=data[m]?data[m].gross:0;
-      annualTotal+=val;
-      grandMonthly[m]+=val;
-      html+=`<td class="mono text-right">${val?fmt(val):'<span style="color:var(--text-muted)">—</span>'}</td>`;
-    }
-    grandAnnual+=annualTotal;
-    html+=`<td class="mono text-right" style="font-weight:600;background:rgba(59,130,246,.05)">${fmt(annualTotal)}</td></tr>`;
+  var grandMonthly=displayIndices.map(function(){return 0;});
+  var grandTotal=0;
+
+  empNames.forEach(function(name){
+    var emp=DATA.employees.find(function(e){return e.name===name;});
+    var data=fyMonthly[name];
+    var periodTotal=0;
+    var typeTag=emp?'<span class="tag '+(emp.type==='FT'?'tag-ft':'tag-pt')+'" style="margin-left:.3rem">'+emp.type+'</span>':'';
+    html+='<tr><td>'+name+' '+typeTag+'</td>';
+    displayIndices.forEach(function(fi,di){
+      var val=data[fi]?data[fi].gross:0;
+      periodTotal+=val;
+      grandMonthly[di]+=val;
+      html+='<td class="mono text-right">'+(val?fmt(val):'<span style="color:var(--text-muted)">\u2014</span>')+'</td>';
+    });
+    grandTotal+=periodTotal;
+    html+='<td class="mono text-right" style="font-weight:600;background:rgba(59,130,246,.05)">'+fmt(periodTotal)+'</td></tr>';
   });
 
-  // Monthly totals row
-  html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>MONTHLY TOTAL</td>`;
-  for(let m=0;m<12;m++){
-    html+=`<td class="mono text-right">${grandMonthly[m]?fmt(grandMonthly[m]):'—'}</td>`;
-  }
-  html+=`<td class="mono text-right" style="color:var(--primary);background:rgba(59,130,246,.1)">${fmt(grandAnnual)}</td></tr>`;
+  html+='<tr style="font-weight:700;border-top:2px solid var(--border)"><td>MONTHLY TOTAL</td>';
+  grandMonthly.forEach(function(v){html+='<td class="mono text-right">'+(v?fmt(v):'\u2014')+'</td>';});
+  html+='<td class="mono text-right" style="color:var(--primary);background:rgba(59,130,246,.1)">'+fmt(grandTotal)+'</td></tr>';
 
-  // Net pay row
-  let netMonthly=Array.from({length:12},()=>0);
-  let netAnnual=0;
-  empNames.forEach(name=>{
-    const data=monthly[name];
-    for(let m=0;m<12;m++){
-      if(data[m]){netMonthly[m]+=data[m].netPay;netAnnual+=data[m].netPay;}
-    }
+  var netMonthly=displayIndices.map(function(){return 0;});
+  var netTotal=0;
+  empNames.forEach(function(name){
+    var data=fyMonthly[name];
+    displayIndices.forEach(function(fi,di){
+      if(data[fi]){netMonthly[di]+=data[fi].netPay;netTotal+=data[fi].netPay;}
+    });
   });
-  html+=`<tr style="font-weight:700;color:var(--green)"><td>NET PAY TOTAL</td>`;
-  for(let m=0;m<12;m++){
-    html+=`<td class="mono text-right">${netMonthly[m]?fmt(netMonthly[m]):'—'}</td>`;
-  }
-  html+=`<td class="mono text-right" style="background:rgba(16,185,129,.1)">${fmt(netAnnual)}</td></tr>`;
+  html+='<tr style="font-weight:700;color:var(--green)"><td>NET PAY TOTAL</td>';
+  netMonthly.forEach(function(v){html+='<td class="mono text-right">'+(v?fmt(v):'\u2014')+'</td>';});
+  html+='<td class="mono text-right" style="background:rgba(16,185,129,.1)">'+fmt(netTotal)+'</td></tr>';
 
-  if(empNames.length===0)html+=`<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:2rem">No employees or payroll data</td></tr>`;
+  if(empNames.length===0)html+='<tr><td colspan="'+colCount+'" style="text-align:center;color:var(--text-muted);padding:2rem">No employees or payroll data</td></tr>';
   html+='</tbody></table>';
   document.getElementById('salaryRecordsTable').innerHTML=html;
 
-  // Stats cards
-  const totalDeductions=grandAnnual-netAnnual;
-  let erTotal=0;
-  empNames.forEach(name=>{
-    const data=monthly[name];
-    for(let m=0;m<12;m++){if(data[m])erTotal+=data[m].totalErContributions;}
+  var totalDeductions=grandTotal-netTotal;
+  var erTotal=0;
+  empNames.forEach(function(name){
+    var data=fyMonthly[name];
+    displayIndices.forEach(function(fi){if(data[fi])erTotal+=data[fi].totalErContributions;});
   });
-  const monthsWithData=grandMonthly.filter(v=>v>0).length;
-  document.getElementById('salaryRecordStats').innerHTML=`
-    <div class="stat-card blue"><div class="label">Annual Gross</div><div class="value mono">${fmt(grandAnnual)}</div><div class="sub">${year} — ${monthsWithData} month(s) recorded</div></div>
-    <div class="stat-card green"><div class="label">Annual Net Pay</div><div class="value mono">${fmt(netAnnual)}</div><div class="sub">After all employee deductions</div></div>
-    <div class="stat-card red"><div class="label">Employee Deductions</div><div class="value mono">${fmt(totalDeductions)}</div><div class="sub">NIS + Ed Tax + NHT + Income Tax</div></div>
-    <div class="stat-card gold"><div class="label">Employer Contributions</div><div class="value mono">${fmt(erTotal)}</div><div class="sub">NIS + Ed Tax + NHT + HEART</div></div>
-  `;
+  var monthsWithData=grandMonthly.filter(function(v){return v>0;}).length;
+  var statsPrefix=srQuarter===-1?'Annual':'Quarter';
+  document.getElementById('salaryRecordStats').innerHTML=
+    '<div class="stat-card blue"><div class="label">'+statsPrefix+' Gross</div><div class="value mono">'+fmt(grandTotal)+'</div><div class="sub">'+periodLabel+' \u2014 '+monthsWithData+' month(s) recorded</div></div>'+
+    '<div class="stat-card green"><div class="label">'+statsPrefix+' Net Pay</div><div class="value mono">'+fmt(netTotal)+'</div><div class="sub">After all employee deductions</div></div>'+
+    '<div class="stat-card red"><div class="label">Employee Deductions</div><div class="value mono">'+fmt(totalDeductions)+'</div><div class="sub">NIS + Ed Tax + NHT + Income Tax</div></div>'+
+    '<div class="stat-card gold"><div class="label">Employer Contributions</div><div class="value mono">'+fmt(erTotal)+'</div><div class="sub">NIS + Ed Tax + NHT + HEART</div></div>';
 
-  renderQuarterlyTables(year,monthly,empNames);
+  renderSRQuarterlyTables(fyMonthly,empNames);
 }
 
-function renderQuarterlyTables(year,monthly,empNames){
-  const quarters=[
-    {label:'Q1 (Jan\u2013Mar)',months:[0,1,2]},
-    {label:'Q2 (Apr\u2013Jun)',months:[3,4,5]},
-    {label:'Q3 (Jul\u2013Sep)',months:[6,7,8]},
-    {label:'Q4 (Oct\u2013Dec)',months:[9,10,11]}
+function renderSRQuarterlyTables(fyMonthly,empNames){
+  var quarters=[
+    {label:'Q1 (Apr\u2013Jun)',indices:[0,1,2]},
+    {label:'Q2 (Jul\u2013Sep)',indices:[3,4,5]},
+    {label:'Q3 (Oct\u2013Dec)',indices:[6,7,8]},
+    {label:'Q4 (Jan\u2013Mar)',indices:[9,10,11]}
   ];
 
-  // Aggregated quarterly summary
-  let qhtml='<table><thead><tr><th>Quarter</th><th class="text-right">Gross Pay</th><th class="text-right">NIS (Emp)</th><th class="text-right">Ed. Tax (Emp)</th><th class="text-right">NHT (Emp)</th><th class="text-right">Income Tax</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Net Pay</th><th class="text-right">NIS (Er)</th><th class="text-right">Ed. Tax (Er)</th><th class="text-right">NHT (Er)</th><th class="text-right">HEART (Er)</th><th class="text-right">Total Er Contr.</th></tr></thead><tbody>';
-
-  let annTotals={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
-
-  quarters.forEach(q=>{
-    let t={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
-    empNames.forEach(name=>{
-      const data=monthly[name];
-      q.months.forEach(m=>{
-        if(data[m]){
-          t.gross+=data[m].gross;t.nisE+=data[m].nisEmp;t.edE+=data[m].edTaxEmp;t.nhtE+=data[m].nhtEmp;
-          t.it+=data[m].incomeTax;t.empDed+=data[m].totalEmpDeductions;t.net+=data[m].netPay;
-          t.nisR+=data[m].nisEr;t.edR+=data[m].edTaxEr;t.nhtR+=data[m].nhtEr;t.heartR+=data[m].heartEr;
-          t.erC+=data[m].totalErContributions;
-        }
+  if(srQuarter===-1){
+    // Full year: aggregated quarterly summary
+    document.getElementById('quarterlySummaryPanel').style.display='';
+    document.getElementById('quarterlySummaryTitle').textContent='Quarterly Summary \u2014 '+getFYLabel(srFYStartYear);
+    var qhtml='<table><thead><tr><th>Quarter</th><th class="text-right">Gross Pay</th><th class="text-right">NIS (Emp)</th><th class="text-right">Ed. Tax (Emp)</th><th class="text-right">NHT (Emp)</th><th class="text-right">Income Tax</th><th class="text-right">Total Emp Ded.</th><th class="text-right">Net Pay</th><th class="text-right">NIS (Er)</th><th class="text-right">Ed. Tax (Er)</th><th class="text-right">NHT (Er)</th><th class="text-right">HEART (Er)</th><th class="text-right">Total Er Contr.</th></tr></thead><tbody>';
+    var annTotals={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
+    quarters.forEach(function(q){
+      var t={gross:0,nisE:0,edE:0,nhtE:0,it:0,empDed:0,net:0,nisR:0,edR:0,nhtR:0,heartR:0,erC:0};
+      empNames.forEach(function(name){
+        var data=fyMonthly[name];
+        q.indices.forEach(function(fi){
+          if(data[fi]){
+            t.gross+=data[fi].gross;t.nisE+=data[fi].nisEmp;t.edE+=data[fi].edTaxEmp;t.nhtE+=data[fi].nhtEmp;
+            t.it+=data[fi].incomeTax;t.empDed+=data[fi].totalEmpDeductions;t.net+=data[fi].netPay;
+            t.nisR+=data[fi].nisEr;t.edR+=data[fi].edTaxEr;t.nhtR+=data[fi].nhtEr;t.heartR+=data[fi].heartEr;
+            t.erC+=data[fi].totalErContributions;
+          }
+        });
       });
+      Object.keys(annTotals).forEach(function(k){annTotals[k]+=t[k];});
+      var hd=t.gross>0;
+      qhtml+='<tr><td style="font-weight:600">'+q.label+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.gross):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.nisE):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.edE):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.nhtE):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.it):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.empDed):'\u2014')+'</td>'+
+        '<td class="mono text-right" style="color:var(--green)">'+(hd?fmt(t.net):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.nisR):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.edR):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.nhtR):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.heartR):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(t.erC):'\u2014')+'</td></tr>';
     });
-    Object.keys(annTotals).forEach(k=>{annTotals[k]+=t[k];});
-    const hasData=t.gross>0;
-    qhtml+=`<tr><td style="font-weight:600">${q.label}</td>
-      <td class="mono text-right">${hasData?fmt(t.gross):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.nisE):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.edE):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.nhtE):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.it):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.empDed):'—'}</td>
-      <td class="mono text-right" style="color:var(--green)">${hasData?fmt(t.net):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.nisR):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.edR):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.nhtR):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.heartR):'—'}</td>
-      <td class="mono text-right">${hasData?fmt(t.erC):'—'}</td></tr>`;
-  });
+    qhtml+='<tr style="font-weight:700;border-top:2px solid var(--border)"><td>ANNUAL TOTAL</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.gross)+'</td><td class="mono text-right">'+fmt(annTotals.nisE)+'</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.edE)+'</td><td class="mono text-right">'+fmt(annTotals.nhtE)+'</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.it)+'</td><td class="mono text-right">'+fmt(annTotals.empDed)+'</td>'+
+      '<td class="mono text-right" style="color:var(--green)">'+fmt(annTotals.net)+'</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.nisR)+'</td><td class="mono text-right">'+fmt(annTotals.edR)+'</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.nhtR)+'</td><td class="mono text-right">'+fmt(annTotals.heartR)+'</td>'+
+      '<td class="mono text-right">'+fmt(annTotals.erC)+'</td></tr>';
+    qhtml+='</tbody></table>';
+    document.getElementById('quarterlyTable').innerHTML=qhtml;
 
-  qhtml+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>ANNUAL TOTAL</td>
-    <td class="mono text-right">${fmt(annTotals.gross)}</td><td class="mono text-right">${fmt(annTotals.nisE)}</td>
-    <td class="mono text-right">${fmt(annTotals.edE)}</td><td class="mono text-right">${fmt(annTotals.nhtE)}</td>
-    <td class="mono text-right">${fmt(annTotals.it)}</td><td class="mono text-right">${fmt(annTotals.empDed)}</td>
-    <td class="mono text-right" style="color:var(--green)">${fmt(annTotals.net)}</td>
-    <td class="mono text-right">${fmt(annTotals.nisR)}</td><td class="mono text-right">${fmt(annTotals.edR)}</td>
-    <td class="mono text-right">${fmt(annTotals.nhtR)}</td><td class="mono text-right">${fmt(annTotals.heartR)}</td>
-    <td class="mono text-right">${fmt(annTotals.erC)}</td></tr>`;
-  qhtml+='</tbody></table>';
-  document.getElementById('quarterlyTable').innerHTML=qhtml;
-
-  // Per-employee quarterly breakdown
-  let eqhtml='<table><thead><tr><th>Employee</th><th class="text-right">Q1 Gross</th><th class="text-right">Q1 Net</th><th class="text-right">Q2 Gross</th><th class="text-right">Q2 Net</th><th class="text-right">Q3 Gross</th><th class="text-right">Q3 Net</th><th class="text-right">Q4 Gross</th><th class="text-right">Q4 Net</th><th class="text-right">Annual Gross</th><th class="text-right">Annual Net</th></tr></thead><tbody>';
-
-  let qTotals=Array.from({length:4},()=>({gross:0,net:0}));
-  let aTotals={gross:0,net:0};
-
-  empNames.forEach(name=>{
-    const emp=DATA.employees.find(e=>e.name===name);
-    const data=monthly[name];
-    let empAnnGross=0,empAnnNet=0;
-    const typeTag=emp?`<span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span>`:'';
-    eqhtml+=`<tr><td>${name} ${typeTag}</td>`;
-    quarters.forEach((q,qi)=>{
-      let qg=0,qn=0;
-      q.months.forEach(m=>{
-        if(data[m]){qg+=data[m].gross;qn+=data[m].netPay;}
+    // Per-employee quarterly breakdown
+    document.getElementById('empQuarterlyPanel').style.display='';
+    document.getElementById('empQuarterlyTitle').textContent='Per-Employee Quarterly Breakdown \u2014 '+getFYLabel(srFYStartYear);
+    var eqhtml='<table><thead><tr><th>Employee</th><th class="text-right">Q1 Gross</th><th class="text-right">Q1 Net</th><th class="text-right">Q2 Gross</th><th class="text-right">Q2 Net</th><th class="text-right">Q3 Gross</th><th class="text-right">Q3 Net</th><th class="text-right">Q4 Gross</th><th class="text-right">Q4 Net</th><th class="text-right">Annual Gross</th><th class="text-right">Annual Net</th></tr></thead><tbody>';
+    var qTotals=[{gross:0,net:0},{gross:0,net:0},{gross:0,net:0},{gross:0,net:0}];
+    var aTotals={gross:0,net:0};
+    empNames.forEach(function(name){
+      var emp=DATA.employees.find(function(e){return e.name===name;});
+      var data=fyMonthly[name];
+      var empAG=0,empAN=0;
+      var typeTag=emp?'<span class="tag '+(emp.type==='FT'?'tag-ft':'tag-pt')+'" style="margin-left:.3rem">'+emp.type+'</span>':'';
+      eqhtml+='<tr><td>'+name+' '+typeTag+'</td>';
+      quarters.forEach(function(q,qi){
+        var qg=0,qn=0;
+        q.indices.forEach(function(fi){if(data[fi]){qg+=data[fi].gross;qn+=data[fi].netPay;}});
+        empAG+=qg;empAN+=qn;
+        qTotals[qi].gross+=qg;qTotals[qi].net+=qn;
+        eqhtml+='<td class="mono text-right">'+(qg?fmt(qg):'\u2014')+'</td><td class="mono text-right" style="color:var(--green)">'+(qn?fmt(qn):'\u2014')+'</td>';
       });
-      empAnnGross+=qg;empAnnNet+=qn;
-      qTotals[qi].gross+=qg;qTotals[qi].net+=qn;
-      eqhtml+=`<td class="mono text-right">${qg?fmt(qg):'—'}</td><td class="mono text-right" style="color:var(--green)">${qn?fmt(qn):'—'}</td>`;
+      aTotals.gross+=empAG;aTotals.net+=empAN;
+      eqhtml+='<td class="mono text-right" style="font-weight:600">'+fmt(empAG)+'</td><td class="mono text-right" style="font-weight:600;color:var(--green)">'+fmt(empAN)+'</td></tr>';
     });
-    aTotals.gross+=empAnnGross;aTotals.net+=empAnnNet;
-    eqhtml+=`<td class="mono text-right" style="font-weight:600">${fmt(empAnnGross)}</td><td class="mono text-right" style="font-weight:600;color:var(--green)">${fmt(empAnnNet)}</td></tr>`;
-  });
+    eqhtml+='<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td>';
+    quarters.forEach(function(q,qi){
+      eqhtml+='<td class="mono text-right">'+fmt(qTotals[qi].gross)+'</td><td class="mono text-right" style="color:var(--green)">'+fmt(qTotals[qi].net)+'</td>';
+    });
+    eqhtml+='<td class="mono text-right">'+fmt(aTotals.gross)+'</td><td class="mono text-right" style="color:var(--green)">'+fmt(aTotals.net)+'</td></tr>';
+    if(empNames.length===0)eqhtml+='<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">No data</td></tr>';
+    eqhtml+='</tbody></table>';
+    document.getElementById('empQuarterlyTable').innerHTML=eqhtml;
 
-  eqhtml+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td>`;
-  quarters.forEach((q,qi)=>{
-    eqhtml+=`<td class="mono text-right">${fmt(qTotals[qi].gross)}</td><td class="mono text-right" style="color:var(--green)">${fmt(qTotals[qi].net)}</td>`;
-  });
-  eqhtml+=`<td class="mono text-right">${fmt(aTotals.gross)}</td><td class="mono text-right" style="color:var(--green)">${fmt(aTotals.net)}</td></tr>`;
-
-  if(empNames.length===0)eqhtml+=`<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">No data</td></tr>`;
-  eqhtml+='</tbody></table>';
-  document.getElementById('empQuarterlyTable').innerHTML=eqhtml;
+  }else{
+    // Quarter view: show per-employee deduction breakdown
+    var q=quarters[srQuarter];
+    var qDef=QUARTER_MONTHS[srQuarter];
+    document.getElementById('quarterlySummaryPanel').style.display='';
+    document.getElementById('quarterlySummaryTitle').textContent=qDef.label+' Deduction Summary \u2014 '+getFYLabel(srFYStartYear);
+    var dhtml='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th></tr></thead><tbody>';
+    var totals={gross:0,nis:0,ed:0,it:0,nht:0,heart:0,ded:0,net:0};
+    empNames.forEach(function(name){
+      var emp=DATA.employees.find(function(e){return e.name===name;});
+      var data=fyMonthly[name];
+      var eg=0,en=0,eed=0,eit=0,enht=0,eh=0,ed=0,enet=0;
+      q.indices.forEach(function(fi){
+        if(data[fi]){eg+=data[fi].gross;en+=data[fi].nisEmp;eed+=data[fi].edTaxEmp;eit+=data[fi].incomeTax;enht+=data[fi].nhtEmp;eh+=data[fi].heartEr;ed+=data[fi].totalEmpDeductions;enet+=data[fi].netPay;}
+      });
+      totals.gross+=eg;totals.nis+=en;totals.ed+=eed;totals.it+=eit;totals.nht+=enht;totals.heart+=eh;totals.ded+=ed;totals.net+=enet;
+      var typeTag=emp?'<span class="tag '+(emp.type==='FT'?'tag-ft':'tag-pt')+'" style="margin-left:.3rem">'+emp.type+'</span>':'';
+      var hd=eg>0;
+      dhtml+='<tr><td>'+name+' '+typeTag+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(eg):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(en):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(eed):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(eit):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(enht):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(eh):'\u2014')+'</td>'+
+        '<td class="mono text-right">'+(hd?fmt(ed):'\u2014')+'</td>'+
+        '<td class="mono text-right" style="color:var(--green);font-weight:600">'+(hd?fmt(enet):'\u2014')+'</td></tr>';
+    });
+    dhtml+='<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td>'+
+      '<td class="mono text-right">'+fmt(totals.gross)+'</td><td class="mono text-right">'+fmt(totals.nis)+'</td>'+
+      '<td class="mono text-right">'+fmt(totals.ed)+'</td><td class="mono text-right">'+fmt(totals.it)+'</td>'+
+      '<td class="mono text-right">'+fmt(totals.nht)+'</td><td class="mono text-right">'+fmt(totals.heart)+'</td>'+
+      '<td class="mono text-right">'+fmt(totals.ded)+'</td>'+
+      '<td class="mono text-right" style="color:var(--green)">'+fmt(totals.net)+'</td></tr>';
+    if(empNames.length===0)dhtml+='<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">No data</td></tr>';
+    dhtml+='</tbody></table>';
+    document.getElementById('quarterlyTable').innerHTML=dhtml;
+    document.getElementById('empQuarterlyPanel').style.display='none';
+  }
 }
 
 function exportSalaryRecordsCSV(){
-  const year=parseInt(document.getElementById('salaryRecordYear').value)||new Date().getFullYear();
-  const monthly=getMonthlyData(year);
-  let csv='Employee,Type,'+MONTH_NAMES.join(',')+',Annual Total\n';
-  Object.keys(monthly).forEach(name=>{
-    const emp=DATA.employees.find(e=>e.name===name);
-    const data=monthly[name];
-    let annTotal=0;
-    csv+=`"${name}",${emp?emp.type:''}`;
-    for(let m=0;m<12;m++){
-      const val=data[m]?data[m].gross:0;
-      annTotal+=val;csv+=`,${val.toFixed(2)}`;
-    }
-    csv+=`,${annTotal.toFixed(2)}\n`;
+  var fyMonthly=getFYMonthlyData(srFYStartYear);
+  var displayIndices,displayNames,fileLabel;
+  if(srQuarter===-1){
+    displayIndices=[0,1,2,3,4,5,6,7,8,9,10,11];
+    displayNames=FY_MONTH_NAMES;
+    fileLabel='FY'+srFYStartYear+'_'+(srFYStartYear+1);
+  }else{
+    var si=srQuarter*3;
+    displayIndices=[si,si+1,si+2];
+    displayNames=[FY_MONTH_NAMES[si],FY_MONTH_NAMES[si+1],FY_MONTH_NAMES[si+2]];
+    fileLabel=QUARTER_MONTHS[srQuarter].label+'_FY'+srFYStartYear+'_'+(srFYStartYear+1);
+  }
+  var csv='Employee,Type,'+displayNames.join(',')+',Total\n';
+  Object.keys(fyMonthly).forEach(function(name){
+    var emp=DATA.employees.find(function(e){return e.name===name;});
+    var data=fyMonthly[name];
+    var total=0;
+    csv+='"'+name+'",'+(emp?emp.type:'');
+    displayIndices.forEach(function(fi){
+      var val=data[fi]?data[fi].gross:0;
+      total+=val;csv+=','+val.toFixed(2);
+    });
+    csv+=','+total.toFixed(2)+'\n';
   });
-  const blob=new Blob([csv],{type:'text/csv'});
-  const a=document.createElement('a');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`CESTIS_SalaryRecords_${year}.csv`;
+  a.download='CESTIS_SalaryRecords_'+fileLabel+'.csv';
   a.click();URL.revokeObjectURL(a.href);
 }
 
