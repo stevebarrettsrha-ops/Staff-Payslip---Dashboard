@@ -229,6 +229,19 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .login-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .login-btn:active{transform:translateY(0)}
 .login-error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:.6rem .8rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;display:none}
+.login-syncing-overlay{position:absolute;inset:0;background:rgba(17,17,21,.85);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:.75rem;display:none}
+.login-syncing-overlay.show{display:flex}
+.login-syncing-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.login-syncing-text{color:var(--text-dim);font-size:.82rem;font-weight:600;text-align:center}
+.login-syncing-sub{color:var(--text-muted);font-size:.72rem;text-align:center;max-width:260px}
+.login-cloud-banner{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;font-size:.75rem;transition:all .3s}
+.login-cloud-banner.synced{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.06)}
+.login-cloud-banner.syncing{border-color:rgba(99,102,241,.3);background:rgba(99,102,241,.06)}
+.login-cloud-banner.error{border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.06)}
+.login-cloud-banner .banner-icon{font-size:.9rem;flex-shrink:0}
+.login-cloud-banner .banner-text{color:var(--text-dim);flex:1;line-height:1.3}
+.login-cloud-banner .banner-text strong{color:var(--text);font-weight:600}
 .login-user-info{text-align:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)}
 .login-user-info span{font-size:.75rem;color:var(--text-muted)}
 
@@ -389,10 +402,19 @@ tr:hover td{background:rgba(59,130,246,.04)}
 
 <!-- ===== LOGIN SCREEN ===== -->
 <div class="login-screen" id="loginScreen">
-  <div class="login-card">
+  <div class="login-card" style="position:relative">
+    <div class="login-syncing-overlay" id="loginSyncOverlay">
+      <div class="login-syncing-spinner"></div>
+      <div class="login-syncing-text" id="loginSyncOverlayText">Syncing from cloud...</div>
+      <div class="login-syncing-sub" id="loginSyncOverlaySub">Checking for your account credentials</div>
+    </div>
     <div class="login-brand">
       <h1>C.E.S.T.I.S</h1>
       <p>Payroll Management System</p>
+    </div>
+    <div id="loginCloudBanner" class="login-cloud-banner" style="display:none">
+      <span class="banner-icon" id="loginBannerIcon">☁️</span>
+      <span class="banner-text" id="loginBannerText"></span>
     </div>
     <div class="login-error" id="loginError">Invalid username or password</div>
     <div class="form-group">
@@ -403,7 +425,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <label>Password</label>
       <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
     <div style="margin-top:1rem;text-align:center">
       <button onclick="loginCloudSync()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:.5rem 1rem;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;width:100%;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'" id="loginCloudBtn">☁️ Sync Credentials from Cloud</button>
       <div id="loginCloudStatus" style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;display:none"></div>
@@ -2547,6 +2569,67 @@ async function checkCloudForChanges() {
     return null;
 }
 
+// Auto-save users to cloud (called when admin creates/edits/deletes a user)
+async function autoSaveUsersToCloud(){
+  if(!isCloudConnected||!googleAccessToken){
+    console.log('[AutoCloudPush] Not connected to cloud, skipping');
+    return;
+  }
+  setCloudSyncing(true);
+  try{
+    await findExistingBackupFile();
+    var backupData={
+      version:'1.1',
+      timestamp:new Date().toISOString(),
+      savedBy:currentUser?currentUser.displayName:'Dashboard User',
+      data:DATA,
+      users:loadUsers(),
+      permissions:loadPermissions()
+    };
+    var jsonContent=JSON.stringify(backupData,null,2);
+    var response;
+    if(cloudFileId){
+      var boundary='boundary_'+Date.now();
+      var updateMetadata={name:GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME};
+      var multipartBody='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(updateMetadata)+'\r\n--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+jsonContent+'\r\n--'+boundary+'--';
+      response=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+cloudFileId+'?uploadType=multipart&fields=id,name,parents',{
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+googleAccessToken,'Content-Type':'multipart/related; boundary='+boundary},
+        body:multipartBody
+      });
+      if(response.status===404){cloudFileId=null;localStorage.removeItem('schoolDashboardCloudFileId');}
+    }
+    if(!cloudFileId){
+      var boundary2='boundary_'+Date.now();
+      var metadata={name:GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME,parents:[GOOGLE_DRIVE_CONFIG.FOLDER_ID],mimeType:'application/json'};
+      var multipartBody2='--'+boundary2+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n--'+boundary2+'\r\nContent-Type: application/json\r\n\r\n'+jsonContent+'\r\n--'+boundary2+'--';
+      response=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+googleAccessToken,'Content-Type':'multipart/related; boundary='+boundary2},
+        body:multipartBody2
+      });
+      if(response.ok){
+        var result=await response.json();
+        cloudFileId=result.id;
+        localStorage.setItem('schoolDashboardCloudFileId',cloudFileId);
+      }
+    }
+    if(response&&response.ok){
+      lastSyncTime=new Date();
+      localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
+      updateLastSyncDisplay();
+      lastSavedBy=currentUser?currentUser.displayName:'Dashboard User';
+      cloudFileTimestamp=new Date().toISOString();
+      console.log('[AutoCloudPush] User data auto-saved to cloud');
+    }else{
+      console.log('[AutoCloudPush] Cloud save failed');
+    }
+  }catch(err){
+    console.log('[AutoCloudPush] Error:',err.message);
+  }
+  setCloudSyncing(false);
+}
+
 // ============ SAVE TO CLOUD ============
 async function saveToCloud() {
     if (!isCloudConnected || !googleAccessToken) {
@@ -3339,24 +3422,147 @@ function loadPermissions(){
 }
 function savePermissions(perms){localStorage.setItem(PERMS_KEY,JSON.stringify(perms));}
 
-function doLogin(){
+async function doLogin(){
   const username=document.getElementById('loginUsername').value.trim().toLowerCase();
   const password=document.getElementById('loginPassword').value.trim();
   const errEl=document.getElementById('loginError');
+  const loginBtnEl=document.getElementById('loginBtn');
   if(!username||!password){errEl.textContent='Please enter username and password';errEl.style.display='block';return;}
   // Ensure users are persisted before checking
   if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
-  const users=loadUsers();
+  var users=loadUsers();
   console.log('[Login] Attempting login for:',username,'| Available users:',users.map(function(u){return u.username;}));
-  const user=users.find(u=>u.username.toLowerCase()===username&&u.password===password);
+  var user=users.find(function(u){return u.username.toLowerCase()===username&&u.password===password;});
+
+  // If local credentials fail, auto-sync from cloud and retry
   if(!user){
-    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Try clicking "Sync Credentials from Cloud" below if you are a new user, or contact your administrator.</span>';
-    errEl.style.display='block';return;
+    var cloudSynced=await attemptCloudSyncForLogin();
+    if(cloudSynced){
+      users=loadUsers();
+      user=users.find(function(u){return u.username.toLowerCase()===username&&u.password===password;});
+    }
+  }
+
+  if(!user){
+    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">If you are a new user, click "Sync Credentials from Cloud" below or contact your administrator.</span>';
+    errEl.style.display='block';loginBtnEl.disabled=false;return;
   }
   errEl.style.display='none';
   currentUser={id:user.id,username:user.username,displayName:user.displayName,role:user.role};
   localStorage.setItem(SESSION_KEY,JSON.stringify(currentUser));
   showApp();
+}
+
+// Silent cloud sync attempt during login — tries to fetch latest user list from cloud
+async function attemptCloudSyncForLogin(){
+  var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
+  var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+  var fileId=localStorage.getItem('schoolDashboardCloudFileId');
+
+  // If no valid token, try to obtain one via Google Identity Services
+  if(!token||!expiry||new Date(expiry)<=new Date()){
+    if(typeof google!=='undefined'&&google.accounts&&google.accounts.oauth2){
+      try{
+        token=await new Promise(function(resolve,reject){
+          var client=google.accounts.oauth2.initTokenClient({
+            client_id:GOOGLE_DRIVE_CONFIG.CLIENT_ID,
+            scope:GOOGLE_DRIVE_CONFIG.SCOPES,
+            callback:function(resp){
+              if(resp.error)reject(new Error(resp.error));
+              else resolve(resp.access_token);
+            }
+          });
+          client.requestAccessToken();
+        });
+        googleAccessToken=token;
+        var tokenExpiry=new Date(Date.now()+3500*1000);
+        localStorage.setItem('schoolDashboardGoogleAccessToken',token);
+        localStorage.setItem('schoolDashboardGoogleTokenExpiry',tokenExpiry.toISOString());
+      }catch(err){
+        console.log('[LoginSync] Google auth failed:',err.message);
+        return false;
+      }
+    }else{
+      console.log('[LoginSync] Google API not available');
+      return false;
+    }
+  }
+
+  // Show sync overlay
+  showLoginSyncOverlay('Syncing from cloud...','Checking for your account credentials');
+
+  try{
+    // Find backup file if needed
+    if(!fileId){
+      var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
+      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',{headers:{'Authorization':'Bearer '+token}});
+      if(searchResp.ok){
+        var searchData=await searchResp.json();
+        if(searchData.files&&searchData.files.length>0){
+          fileId=searchData.files[0].id;
+          localStorage.setItem('schoolDashboardCloudFileId',fileId);
+        }
+      }
+    }
+    if(!fileId){hideLoginSyncOverlay();return false;}
+
+    var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok){hideLoginSyncOverlay();return false;}
+    var backupData=await resp.json();
+
+    if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
+      var localUsers=loadUsers();
+      var added=0;
+      backupData.users.forEach(function(cu){
+        var existing=localUsers.find(function(u){return u.username.toLowerCase()===cu.username.toLowerCase();});
+        if(!existing){localUsers.push(cu);added++;}
+        else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
+      });
+      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
+      saveUsers(localUsers);
+      // Also sync main data and permissions
+      if(backupData.data){DATA=backupData.data;saveStore();}
+      if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
+      console.log('[LoginSync] Cloud sync complete:',localUsers.length,'users,',added,'new');
+      hideLoginSyncOverlay();
+      updateLoginCloudBanner('synced','Cloud synced — '+localUsers.length+' account(s) available'+(added>0?' ('+added+' new)':''));
+      return true;
+    }
+    hideLoginSyncOverlay();
+    return false;
+  }catch(err){
+    console.log('[LoginSync] Cloud sync failed:',err.message);
+    hideLoginSyncOverlay();
+    return false;
+  }
+}
+
+function showLoginSyncOverlay(text,sub){
+  var overlay=document.getElementById('loginSyncOverlay');
+  if(!overlay)return;
+  document.getElementById('loginSyncOverlayText').textContent=text||'Syncing from cloud...';
+  document.getElementById('loginSyncOverlaySub').textContent=sub||'';
+  overlay.classList.add('show');
+  var btn=document.getElementById('loginBtn');if(btn)btn.disabled=true;
+}
+function hideLoginSyncOverlay(){
+  var overlay=document.getElementById('loginSyncOverlay');
+  if(overlay)overlay.classList.remove('show');
+  var btn=document.getElementById('loginBtn');if(btn)btn.disabled=false;
+}
+
+function updateLoginCloudBanner(type,message){
+  var banner=document.getElementById('loginCloudBanner');
+  var icon=document.getElementById('loginBannerIcon');
+  var text=document.getElementById('loginBannerText');
+  if(!banner)return;
+  banner.style.display='flex';
+  banner.className='login-cloud-banner '+(type||'');
+  if(type==='synced'){icon.textContent='✅';}
+  else if(type==='syncing'){icon.textContent='🔄';}
+  else if(type==='error'){icon.textContent='⚠️';}
+  else{icon.textContent='☁️';}
+  text.innerHTML=message||'';
 }
 
 function doLogout(){
@@ -3378,6 +3584,7 @@ async function loginCloudSync(){
   statusEl.style.color='var(--text-muted)';
   statusEl.textContent='Connecting to Google Drive...';
   btn.disabled=true;
+  updateLoginCloudBanner('syncing','Connecting to Google Drive...');
 
   // Check for saved token
   var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
@@ -3407,18 +3614,21 @@ async function loginCloudSync(){
       }catch(err){
         statusEl.style.color='var(--danger)';
         statusEl.textContent='Google sign-in cancelled or failed. Try again.';
+        updateLoginCloudBanner('error','Google sign-in failed. Try again.');
         btn.disabled=false;
         return;
       }
     }else{
       statusEl.style.color='var(--danger)';
       statusEl.textContent='Google API not loaded. Refresh the page and try again.';
+      updateLoginCloudBanner('error','Google API not loaded. Refresh the page.');
       btn.disabled=false;
       return;
     }
   }
 
   statusEl.textContent='Searching for backup file...';
+  updateLoginCloudBanner('syncing','Searching for cloud backup...');
 
   try{
     // Find backup file
@@ -3440,11 +3650,13 @@ async function loginCloudSync(){
     if(!fileId){
       statusEl.style.color='var(--accent)';
       statusEl.textContent='No cloud backup found. Ask your admin to save data to cloud first.';
+      updateLoginCloudBanner('error','No cloud backup found. Ask your admin to save data to cloud first.');
       btn.disabled=false;
       return;
     }
 
     statusEl.textContent='Downloading credentials from cloud...';
+    updateLoginCloudBanner('syncing','Downloading credentials from cloud...');
 
     var resp=await fetch(
       'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',
@@ -3490,13 +3702,16 @@ async function loginCloudSync(){
       var userCount=loadUsers().length;
       statusEl.style.color='var(--green)';
       statusEl.textContent='Synced! '+userCount+' user account(s) loaded from cloud. You can now sign in.';
+      updateLoginCloudBanner('synced','Cloud synced — <strong>'+userCount+'</strong> account(s) ready. You can now sign in.');
     }else{
       statusEl.style.color='var(--accent)';
       statusEl.textContent='Cloud backup found but contains no user accounts. Using local accounts.';
+      updateLoginCloudBanner('','Cloud backup found but contains no user accounts.');
     }
   }catch(err){
     statusEl.style.color='var(--danger)';
     statusEl.textContent='Failed to sync: '+err.message;
+    updateLoginCloudBanner('error','Sync failed: '+err.message);
   }
   btn.disabled=false;
 }
@@ -3506,8 +3721,17 @@ async function autoSyncCredentialsOnLoad(){
   var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
   var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
   var fileId=localStorage.getItem('schoolDashboardCloudFileId');
-  if(!token||!expiry||new Date(expiry)<=new Date())return; // No valid token
   var statusEl=document.getElementById('loginCloudStatus');
+  if(!token||!expiry||new Date(expiry)<=new Date()){
+    // No valid token — show helpful banner if cloud was previously connected
+    var hasEverConnected=localStorage.getItem('schoolDashboardCloudFileId')||localStorage.getItem('schoolDashboardLastSyncTime');
+    if(hasEverConnected){
+      updateLoginCloudBanner('error','Cloud session expired. <strong>Sign in</strong> or click <strong>Sync from Cloud</strong> to refresh credentials.');
+    }
+    return;
+  }
+  // Show syncing state in banner
+  updateLoginCloudBanner('syncing','Auto-syncing credentials from cloud...');
   if(statusEl){statusEl.style.display='block';statusEl.style.color='var(--text-muted)';statusEl.textContent='Auto-syncing credentials from cloud...';}
   try{
     // Find file if needed
@@ -3516,9 +3740,17 @@ async function autoSyncCredentialsOnLoad(){
       var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',{headers:{'Authorization':'Bearer '+token}});
       if(searchResp.ok){var searchData=await searchResp.json();if(searchData.files&&searchData.files.length>0){fileId=searchData.files[0].id;localStorage.setItem('schoolDashboardCloudFileId',fileId);}}
     }
-    if(!fileId){if(statusEl){statusEl.textContent='';statusEl.style.display='none';}return;}
+    if(!fileId){
+      updateLoginCloudBanner('error','No cloud backup found. Ask your admin to save data to cloud.');
+      if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+      return;
+    }
     var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
-    if(!resp.ok){if(statusEl){statusEl.textContent='';statusEl.style.display='none';}return;}
+    if(!resp.ok){
+      updateLoginCloudBanner('error','Could not reach cloud backup. Try Sync from Cloud.');
+      if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+      return;
+    }
     var backupData=await resp.json();
     if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
       var localUsers=loadUsers();
@@ -3532,13 +3764,16 @@ async function autoSyncCredentialsOnLoad(){
       saveUsers(localUsers);
       if(backupData.data){DATA=backupData.data;saveStore();}
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
+      updateLoginCloudBanner('synced','Cloud synced — <strong>'+localUsers.length+'</strong> account(s) ready'+(added>0?' ('+added+' new)':''));
       if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) available'+(added>0?' ('+added+' new)':'');}
       console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
     }else{
+      updateLoginCloudBanner('','Cloud connected — no user accounts in backup.');
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
     }
   }catch(err){
     console.log('[AutoSync] Silent sync failed:',err.message);
+    updateLoginCloudBanner('error','Auto-sync failed. Click Sync from Cloud to retry.');
     if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
   }
 }
@@ -3623,9 +3858,19 @@ function saveUser(){
   saveUsers(users);
   closeAddUserModal();
   renderUserManagement();
+  var isNew=!editingUserId||password;
   var msg='User "'+displayName+'" saved successfully.\n\nUsername: '+username+'\nRole: '+role;
-  if(!editingUserId||password){msg+='\nPassword: '+password+'\n\nIMPORTANT: Save to Cloud so this user can log in on other devices.';}
-  alert(msg);
+  if(isNew)msg+='\nPassword: '+password;
+
+  // Auto-push to cloud if connected
+  if(isCloudConnected&&googleAccessToken){
+    msg+='\n\nAuto-syncing to cloud so this user can log in on other devices...';
+    alert(msg);
+    autoSaveUsersToCloud();
+  }else{
+    msg+='\n\nIMPORTANT: Connect to Cloud and Save so this user can log in on other devices.';
+    alert(msg);
+  }
 }
 
 function deleteUser(uid){
@@ -3636,6 +3881,8 @@ function deleteUser(uid){
   if(!confirm('Delete user "'+u.displayName+'"?'))return;
   saveUsers(users.filter(x=>x.id!==uid));
   renderUserManagement();
+  // Auto-sync deletion to cloud
+  if(isCloudConnected&&googleAccessToken)autoSaveUsersToCloud();
 }
 
 function renderUserManagement(){
