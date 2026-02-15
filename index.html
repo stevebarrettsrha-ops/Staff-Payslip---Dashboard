@@ -460,6 +460,12 @@ tr:hover td{background:rgba(59,130,246,.04)}
       </div>
       <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
       <div class="login-user-info"><span>Contact your administrator for access</span></div>
+      <!-- Debug: Verify Stored Accounts -->
+      <div style="text-align:center;margin-top:.5rem">
+        <button onclick="toggleLoginDebug()" style="background:none;border:none;color:var(--text-muted);font-size:.65rem;cursor:pointer;opacity:.5;font-family:inherit" id="loginDebugToggle">Verify stored accounts</button>
+        <div id="loginDebugPanel" style="display:none;margin-top:.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem;text-align:left;font-size:.72rem;color:var(--text-dim);max-height:200px;overflow-y:auto">
+        </div>
+      </div>
     </div>
 
     <!-- First Time Here? Section -->
@@ -2580,7 +2586,7 @@ async function findExistingBackupFile() {
     try {
         const query = `name='${GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME}' and '${GOOGLE_DRIVE_CONFIG.FOLDER_ID}' in parents and trashed=false`;
         const response = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`,
+            `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`,
             { headers: { 'Authorization': `Bearer ${googleAccessToken}` } }
         );
 
@@ -3483,10 +3489,11 @@ async function doLogin(){
   const errEl=document.getElementById('loginError');
   const loginBtnEl=document.getElementById('loginBtn');
   if(!username||!password){errEl.textContent='Please enter username and password';errEl.style.display='block';return;}
+  loginBtnEl.disabled=true;
   // Ensure users are persisted before checking
   if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
   var users=loadUsers();
-  console.log('[Login] Attempting login for:',username,'| Available users:',users.map(function(u){return u.username;}));
+  console.log('[Login] Attempting login for:',username,'| Available users:',JSON.stringify(users.map(function(u){return {username:u.username,hasPassword:!!u.password,pwLen:u.password?u.password.length:0};})));
   var user=users.find(function(u){return u.username.toLowerCase()===username&&u.password===password;});
 
   // If local credentials fail, auto-sync from cloud and retry
@@ -3499,7 +3506,20 @@ async function doLogin(){
   }
 
   if(!user){
-    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">If you are a new user, use <strong>Sync with Google Cloud</strong> below to load your account.</span>';
+    // Give a specific error so user knows what went wrong
+    var matchByUsername=users.find(function(u){return u.username.toLowerCase()===username;});
+    var availableNames=users.map(function(u){return u.username;}).join(', ');
+    if(matchByUsername){
+      // Username found but password is wrong
+      errEl.innerHTML='<strong>Incorrect password</strong> for user "'+username+'". Please check your password and try again.'+
+        '<span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Make sure you are entering the exact password your administrator created for you (passwords are case-sensitive).</span>';
+      console.log('[Login] Password mismatch for "'+username+'" — entered length:',password.length,'stored length:',matchByUsername.password?matchByUsername.password.length:'NO PASSWORD');
+    }else{
+      // Username not found at all
+      errEl.innerHTML='<strong>Account not found</strong>: "'+username+'" does not exist.'+
+        '<span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Available accounts: <strong>'+availableNames+'</strong><br>If your account is missing, click <strong>Sync with Google Cloud</strong> below to load it.</span>';
+      console.log('[Login] Username "'+username+'" not found. Available:',availableNames);
+    }
     errEl.style.display='block';loginBtnEl.disabled=false;
     // Show the First Time section so user can sync
     showFirstTimeSection();
@@ -3550,10 +3570,11 @@ async function attemptCloudSyncForLogin(){
   showLoginSyncOverlay('Syncing from cloud...','Checking for your account credentials');
 
   try{
-    // Find backup file if needed
-    if(!fileId){
+    // Always search for the most recent backup file (clear stale cached ID)
+    fileId=null;
+    {
       var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
-      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',{headers:{'Authorization':'Bearer '+token}});
+      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)&orderBy=modifiedTime%20desc&pageSize=1',{headers:{'Authorization':'Bearer '+token}});
       if(searchResp.ok){
         var searchData=await searchResp.json();
         if(searchData.files&&searchData.files.length>0){
@@ -3583,7 +3604,7 @@ async function attemptCloudSyncForLogin(){
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
       console.log('[LoginSync] Cloud sync complete:',localUsers.length,'users,',added,'new');
       hideLoginSyncOverlay();
-      updateLoginCloudBanner('synced','Cloud synced — '+localUsers.length+' account(s) available'+(added>0?' ('+added+' new)':''));
+      updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
       return true;
     }
     hideLoginSyncOverlay();
@@ -3593,6 +3614,39 @@ async function attemptCloudSyncForLogin(){
     hideLoginSyncOverlay();
     return false;
   }
+}
+
+// Debug panel: show stored accounts on login screen
+function toggleLoginDebug(){
+  var panel=document.getElementById('loginDebugPanel');
+  if(!panel)return;
+  if(panel.style.display==='none'){
+    panel.style.display='block';
+    var users=loadUsers();
+    if(!users||users.length===0){
+      panel.innerHTML='<div style="color:var(--text-muted)">No accounts stored in browser. Use Sync with Google Cloud below to load accounts.</div>';
+      return;
+    }
+    var html='<div style="margin-bottom:.4rem;font-weight:600;color:var(--text)">'+users.length+' stored account(s):</div>';
+    users.forEach(function(u){
+      var pwPreview=u.password?(u.password.charAt(0)+'***'+u.password.charAt(u.password.length-1)+' ('+u.password.length+' chars)'):'<span style="color:var(--danger)">NO PASSWORD</span>';
+      html+='<div style="padding:.3rem 0;border-bottom:1px solid var(--border)">';
+      html+='<span style="color:var(--primary);font-weight:600">'+u.username+'</span>';
+      html+=' <span style="color:var(--text-muted)">('+u.role+')</span>';
+      html+='<br><span style="color:var(--text-muted);font-size:.65rem">Password: '+pwPreview+'</span>';
+      html+='</div>';
+    });
+    panel.innerHTML=html;
+  }else{
+    panel.style.display='none';
+  }
+}
+
+// Helper: format user list for display in sync banners
+function formatSyncedUserList(users){
+  if(!users||!users.length)return '0 accounts';
+  var names=users.map(function(u){return u.username;});
+  return '<strong>'+users.length+'</strong> account(s): <strong>'+names.join('</strong>, <strong>')+'</strong>';
 }
 
 function showLoginSyncOverlay(text,sub){
@@ -3738,12 +3792,12 @@ async function firstTimeGoogleSync(){
   card.className='first-time-card syncing';
 
   try{
-    var fileId=localStorage.getItem('schoolDashboardCloudFileId');
-    // Find backup file
-    if(!fileId){
+    // Always search fresh for the most recent backup (ignore stale cached ID)
+    var fileId=null;
+    {
       var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
       var searchResp=await fetch(
-        'https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',
+        'https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)&orderBy=modifiedTime%20desc&pageSize=1',
         {headers:{'Authorization':'Bearer '+token}}
       );
       if(searchResp.ok){
@@ -3774,6 +3828,11 @@ async function firstTimeGoogleSync(){
     if(!resp.ok)throw new Error('Download failed ('+resp.status+')');
     var backupData=await resp.json();
 
+    // Log cloud backup contents for debugging
+    console.log('[FirstTimeSync] Cloud backup has',backupData.users?backupData.users.length:0,'users:',
+      backupData.users?backupData.users.map(function(u){return u.username+'(pw:'+(u.password?u.password.length+'chars':'NONE')+')';}):[]
+    );
+
     // Merge users
     var synced=false;
     if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
@@ -3787,6 +3846,11 @@ async function firstTimeGoogleSync(){
       if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
       synced=true;
+
+      // Verify the save by re-reading
+      var verify=loadUsers();
+      console.log('[FirstTimeSync] Verified localStorage has',verify.length,'users:',
+        verify.map(function(u){return u.username+'(pw:'+(u.password?u.password.length+'chars':'NONE')+')';}));
     }
     // Sync main data & permissions
     if(backupData.data){DATA=backupData.data;saveStore();}
@@ -3800,16 +3864,17 @@ async function firstTimeGoogleSync(){
 
     btn.classList.remove('loading');
     if(synced){
-      var userCount=loadUsers().length;
+      var syncedUsers=loadUsers();
+      var syncedNames=syncedUsers.map(function(u){return u.username;}).join(', ');
       label.textContent='Synced!';
       btn.disabled=true;
       status.className='ft-status success';
-      status.textContent=userCount+' user account(s) loaded. You can now sign in above.';
+      status.textContent=syncedUsers.length+' account(s) loaded: '+syncedNames+'. You can now sign in above.';
       card.className='first-time-card synced';
       document.getElementById('ftCloudIcon').textContent='\u2705';
       document.getElementById('ftTitle').textContent='Cloud Data Loaded';
       document.getElementById('ftDesc').textContent='Your credentials and payroll data have been synced from Google Drive. Enter your username and password above to sign in.';
-      updateLoginCloudBanner('synced','Cloud synced — <strong>'+userCount+'</strong> account(s) ready. Sign in above.');
+      updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(syncedUsers)+'. Sign in above.');
     }else{
       label.textContent='Sync with Google Cloud';
       btn.disabled=false;
@@ -3872,10 +3937,11 @@ async function autoSyncCredentialsOnLoad(){
   updateLoginCloudBanner('syncing','Auto-syncing credentials from cloud...');
   if(statusEl){statusEl.style.display='block';statusEl.style.color='var(--text-muted)';statusEl.textContent='Auto-syncing credentials from cloud...';}
   try{
-    // Find file if needed
-    if(!fileId){
+    // Always search for the most recent backup file (clear stale cached ID)
+    fileId=null;
+    {
       var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
-      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',{headers:{'Authorization':'Bearer '+token}});
+      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)&orderBy=modifiedTime%20desc&pageSize=1',{headers:{'Authorization':'Bearer '+token}});
       if(searchResp.ok){var searchData=await searchResp.json();if(searchData.files&&searchData.files.length>0){fileId=searchData.files[0].id;localStorage.setItem('schoolDashboardCloudFileId',fileId);}}
     }
     if(!fileId){
@@ -3904,8 +3970,8 @@ async function autoSyncCredentialsOnLoad(){
       saveUsers(localUsers);
       if(backupData.data){DATA=backupData.data;saveStore();}
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
-      updateLoginCloudBanner('synced','Cloud synced — <strong>'+localUsers.length+'</strong> account(s) ready'+(added>0?' ('+added+' new)':''));
-      if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) available'+(added>0?' ('+added+' new)':'');}
+      updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
+      if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.map(function(u){return u.username;}).join(', ');}
       console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
     }else{
       updateLoginCloudBanner('','Cloud connected — no user accounts in backup.');
