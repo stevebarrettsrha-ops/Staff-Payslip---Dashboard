@@ -558,11 +558,6 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <button class="btn btn-primary" onclick="fetchCurrentRates()" id="fetchRatesBtn">🌐 Fetch Current Rates</button>
         </div>
         <div id="ratesFetchStatus" style="display:none;padding:.75rem 1.25rem;font-size:.85rem;border-bottom:1px solid var(--border);"></div>
-        <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <label style="font-size:.85rem;font-weight:600;white-space:nowrap">Rates Source (Google Drive link):</label>
-          <input type="text" id="ratesGDriveUrl" placeholder="Paste Google Drive share link for rates.json (optional)" style="flex:1;min-width:200px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:.82rem">
-          <span style="font-size:.75rem;color:var(--text-muted)">Leave blank to use GitHub default</span>
-        </div>
         <div class="panel-body">
           <div class="form-grid">
             <div class="form-group"><label>NIS Employee Rate (%)</label><input type="number" id="rateNISEmp" value="3" step="0.1"></div>
@@ -1471,7 +1466,6 @@ function loadSettings(){
   document.getElementById('rateIncomeTaxHigher').value=s.incomeTaxHigher||30;
   document.getElementById('higherBracketAnnual').value=s.higherBracketAnnual||6000000;
   document.getElementById('annualThreshold').value=s.annualThreshold;
-  document.getElementById('ratesGDriveUrl').value=s.ratesGDriveUrl||'';
 }
 
 function saveSettings(){
@@ -1487,131 +1481,115 @@ function saveSettings(){
     incomeTax:parseFloat(document.getElementById('rateIncomeTax').value)||25,
     incomeTaxHigher:parseFloat(document.getElementById('rateIncomeTaxHigher').value)||30,
     higherBracketAnnual:parseFloat(document.getElementById('higherBracketAnnual').value)||6000000,
-    annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1799376,
-    ratesGDriveUrl:(document.getElementById('ratesGDriveUrl').value||'').trim()
+    annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1799376
   };
   saveStore();
   alert('Settings saved!');
 }
 
 // ==================== FETCH CURRENT RATES ====================
+// Google Drive folder: https://drive.google.com/drive/folders/1JY8N-AXxxM_eQJ3Gfr0OKBoK4rKchdeV
+// To set up: upload rates.json to the folder above, right-click → Share → "Anyone with the link",
+// then paste the file's ID below (the long string from the share link between /d/ and /view).
+const GDRIVE_RATES_FILE_ID = ''; // ← Set this after uploading rates.json to Google Drive
 const GITHUB_RATES_URL = 'https://raw.githubusercontent.com/stevebarrettsrha-ops/Staff-Payslip---Dashboard/main/rates.json';
 
-// Extract Google Drive file ID from various link formats
-function extractGDriveFileId(url){
-  if(!url) return null;
-  // Format: https://drive.google.com/file/d/FILE_ID/view?...
-  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if(m) return m[1];
-  // Format: https://drive.google.com/open?id=FILE_ID
-  m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if(m) return m[1];
-  // Format: https://drive.google.com/uc?...id=FILE_ID
-  m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if(m) return m[1];
-  // If it looks like a raw file ID already
-  if(/^[a-zA-Z0-9_-]{20,}$/.test(url.trim())) return url.trim();
-  return null;
+function applyRatesData(data, sourceName, statusDiv){
+  if (!data.rates) throw new Error('Invalid rates data format — missing "rates" object');
+
+  const r = data.rates;
+  const fieldMap = {
+    rateNISEmp: r.nisEmp,
+    rateNISEr: r.nisEr,
+    nisCeilingMonthly: r.nisCeilingMonthly,
+    rateEdTaxEmp: r.edTaxEmp,
+    rateEdTaxEr: r.edTaxEr,
+    rateNHTEmp: r.nhtEmp,
+    rateNHTEr: r.nhtEr,
+    rateHeartEr: r.heartEr,
+    rateIncomeTax: r.incomeTax,
+    rateIncomeTaxHigher: r.incomeTaxHigher,
+    higherBracketAnnual: r.higherBracketAnnual,
+    annualThreshold: r.annualThreshold
+  };
+
+  let changedCount = 0;
+  for (const [id, val] of Object.entries(fieldMap)) {
+    if (val !== undefined && val !== null) {
+      const el = document.getElementById(id);
+      if (el && parseFloat(el.value) !== val) {
+        el.value = val;
+        el.style.outline = '2px solid var(--accent2)';
+        setTimeout(() => { el.style.outline = ''; }, 3000);
+        changedCount++;
+      } else if (el) {
+        el.value = val;
+      }
+    }
+  }
+
+  const fy = data.fiscalYear || 'N/A';
+  const effective = data.effectiveDate || 'N/A';
+  const updated = data.lastUpdated || 'N/A';
+  statusDiv.style.background = 'rgba(16,185,129,0.1)';
+  statusDiv.style.color = 'var(--accent2)';
+  statusDiv.innerHTML = '✅ Rates loaded from <strong>' + sourceName + '</strong> — <strong>Fiscal Year ' + fy + '</strong> (effective ' + effective + ', last updated ' + updated + '). ' +
+    (changedCount > 0 ? changedCount + ' field(s) updated.' : 'All fields already current.') +
+    ' <em>Click "Save Settings" to apply.</em>';
 }
 
-// Build a Google Drive direct-download URL from a file ID
-function buildGDriveUrl(fileId){
-  return 'https://drive.google.com/uc?export=download&id=' + fileId;
+async function tryFetchJSON(url){
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  const text = await response.text();
+  if (text.trimStart().startsWith('<')) throw new Error('Received HTML instead of JSON');
+  return JSON.parse(text);
 }
 
 async function fetchCurrentRates(){
   const btn = document.getElementById('fetchRatesBtn');
   const statusDiv = document.getElementById('ratesFetchStatus');
-  const gdriveInput = document.getElementById('ratesGDriveUrl').value.trim();
 
-  // Show loading state
   btn.disabled = true;
   btn.textContent = '⏳ Fetching...';
   statusDiv.style.display = 'block';
   statusDiv.style.background = 'var(--primary-glow)';
   statusDiv.style.color = 'var(--text)';
 
-  // Determine fetch source
-  const gdriveId = extractGDriveFileId(gdriveInput);
-  const useGDrive = !!gdriveId;
-  const fetchUrl = useGDrive ? buildGDriveUrl(gdriveId) : GITHUB_RATES_URL;
-  const sourceName = useGDrive ? 'Google Drive' : 'GitHub';
-
-  statusDiv.textContent = 'Fetching latest rates from ' + sourceName + '...';
-
-  try {
-    const response = await fetch(fetchUrl, { cache: 'no-store' });
-    if (!response.ok) throw new Error(sourceName + ' responded with status ' + response.status);
-
-    const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch(e) {
-      // Google Drive may return an HTML page if CORS blocks or file isn't public
-      if(useGDrive && text.includes('<!DOCTYPE') || text.includes('<html')){
-        throw new Error('Google Drive returned an HTML page instead of JSON. Make sure the file sharing is set to "Anyone with the link" can view.');
-      }
-      throw new Error('Response is not valid JSON');
-    }
-
-    if (!data.rates) throw new Error('Invalid rates data format — missing "rates" object');
-
-    const r = data.rates;
-    const fieldMap = {
-      rateNISEmp: r.nisEmp,
-      rateNISEr: r.nisEr,
-      nisCeilingMonthly: r.nisCeilingMonthly,
-      rateEdTaxEmp: r.edTaxEmp,
-      rateEdTaxEr: r.edTaxEr,
-      rateNHTEmp: r.nhtEmp,
-      rateNHTEr: r.nhtEr,
-      rateHeartEr: r.heartEr,
-      rateIncomeTax: r.incomeTax,
-      rateIncomeTaxHigher: r.incomeTaxHigher,
-      higherBracketAnnual: r.higherBracketAnnual,
-      annualThreshold: r.annualThreshold
-    };
-
-    // Count how many fields changed
-    let changedCount = 0;
-    for (const [id, val] of Object.entries(fieldMap)) {
-      if (val !== undefined && val !== null) {
-        const el = document.getElementById(id);
-        if (el && parseFloat(el.value) !== val) {
-          el.value = val;
-          el.style.outline = '2px solid var(--accent2)';
-          setTimeout(() => { el.style.outline = ''; }, 3000);
-          changedCount++;
-        } else if (el) {
-          el.value = val;
-        }
-      }
-    }
-
-    // Show success status
-    const fy = data.fiscalYear || 'N/A';
-    const effective = data.effectiveDate || 'N/A';
-    const updated = data.lastUpdated || 'N/A';
-    statusDiv.style.background = 'rgba(16,185,129,0.1)';
-    statusDiv.style.color = 'var(--accent2)';
-    statusDiv.innerHTML = '✅ Rates loaded from <strong>' + sourceName + '</strong> — <strong>Fiscal Year ' + fy + '</strong> (effective ' + effective + ', last updated ' + updated + '). ' +
-      (changedCount > 0 ? changedCount + ' field(s) updated.' : 'All fields already current.') +
-      ' <em>Click "Save Settings" to apply.</em>';
-
-  } catch (err) {
-    // If Google Drive failed, offer GitHub fallback
-    let fallbackMsg = '';
-    if(useGDrive){
-      fallbackMsg = ' <button class="btn btn-ghost" style="font-size:.8rem;padding:.2rem .5rem;margin-left:.5rem" onclick="document.getElementById(\'ratesGDriveUrl\').value=\'\';fetchCurrentRates()">Try GitHub fallback</button>';
-    }
-    statusDiv.style.background = 'rgba(239,68,68,0.1)';
-    statusDiv.style.color = 'var(--danger)';
-    statusDiv.innerHTML = '❌ Failed to fetch from ' + sourceName + ': ' + err.message + '.' + fallbackMsg;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🌐 Fetch Current Rates';
+  // Build ordered list of sources to try
+  const sources = [];
+  if (GDRIVE_RATES_FILE_ID) {
+    sources.push({
+      name: 'Google Drive',
+      url: 'https://drive.google.com/uc?export=download&id=' + GDRIVE_RATES_FILE_ID
+    });
   }
+  sources.push({ name: 'GitHub', url: GITHUB_RATES_URL });
+
+  for (let i = 0; i < sources.length; i++) {
+    const src = sources[i];
+    statusDiv.textContent = 'Fetching latest rates from ' + src.name + '...';
+    try {
+      const data = await tryFetchJSON(src.url);
+      applyRatesData(data, src.name, statusDiv);
+      btn.disabled = false;
+      btn.textContent = '🌐 Fetch Current Rates';
+      return;
+    } catch (err) {
+      // If more sources remain, silently try the next one
+      if (i < sources.length - 1) {
+        statusDiv.textContent = src.name + ' unavailable, trying ' + sources[i+1].name + '...';
+        continue;
+      }
+      // All sources exhausted
+      statusDiv.style.background = 'rgba(239,68,68,0.1)';
+      statusDiv.style.color = 'var(--danger)';
+      statusDiv.textContent = '❌ Failed to fetch rates: ' + err.message + '. Please check your internet connection or update rates manually.';
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🌐 Fetch Current Rates';
 }
 
 // ==================== PRESET DATA ====================
