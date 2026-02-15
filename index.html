@@ -576,6 +576,9 @@ tr:hover td{background:rgba(59,130,246,.04)}
             <div class="last-sync-info" id="lastSavedByInfo">
               Last saved by: --
             </div>
+            <div class="last-sync-info" id="backupFileNameInfo" style="word-break:break-all;">
+              Backup file: <span id="backupFileNameText">--</span>
+            </div>
             <div class="cloud-dropdown-divider"></div>
             <div class="cloud-dropdown-item danger" onclick="disconnectFromGoogleDrive()">
               <span>🔌</span>
@@ -2321,6 +2324,8 @@ function updateCloudUI(connected) {
         connectedDiv.style.display = 'block';
         if (statusDot) statusDot.className = 'cloud-status-dot connected';
         if (statusText) statusText.textContent = 'Connected';
+        var bfnText = document.getElementById('backupFileNameText');
+        if (bfnText) bfnText.textContent = GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME;
     } else {
         notConnectedDiv.style.display = 'block';
         connectedDiv.style.display = 'none';
