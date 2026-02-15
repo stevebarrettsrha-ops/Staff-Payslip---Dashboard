@@ -673,7 +673,9 @@ function fmt(n){return '$'+parseFloat(n||0).toLocaleString('en-US',{minimumFract
 function fmtDate(d){if(!d)return'—';const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
 
 // ==================== NAVIGATION ====================
+let currentPageName='dashboard';
 function showPage(name){
+  currentPageName=name;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -688,6 +690,17 @@ function showPage(name){
   if(name==='salaryrecords')renderSalaryRecords();
   if(name==='deductions')renderTaxSummary();
   if(name==='settings')loadSettings();
+}
+
+// Refresh data-dependent sections after employee/payroll changes
+function refreshActiveSections(){
+  // Always refresh dashboard stats since they summarize all data
+  renderDashboard();
+  // Refresh the currently visible section if it depends on employee/payroll data
+  if(currentPageName==='payroll')renderPayrollInput();
+  if(currentPageName==='payslips')populatePayslipSelects();
+  if(currentPageName==='salaryrecords')renderSalaryRecords();
+  if(currentPageName==='deductions')renderTaxSummary();
 }
 
 // ==================== DASHBOARD ====================
@@ -789,22 +802,34 @@ function saveEmployee(){
   if(editingEmpIdx>=0){
     const oldName=DATA.employees[editingEmpIdx].name;
     DATA.employees[editingEmpIdx]=emp;
-    // Propagate name change to all payroll runs so Salary Records stays in sync
-    if(oldName!==emp.name){
-      DATA.payrollRuns.forEach(run=>{
-        run.results.forEach(r=>{
-          if(r.empName===oldName)r.empName=emp.name;
-        });
+    // Propagate changes to all payroll runs so all sections stay in sync
+    DATA.payrollRuns.forEach(run=>{
+      run.results.forEach(r=>{
+        if(r.empName===oldName){
+          r.empName=emp.name;
+          r.empType=emp.type;
+          r.designation=emp.designation;
+          r.trn=emp.trn;
+          r.nis=emp.nis;
+        }
       });
-    }
+    });
   }
   else DATA.employees.push(emp);
-  saveStore();closeEmployeeModal();renderEmployees();
+  saveStore();closeEmployeeModal();renderEmployees();refreshActiveSections();
 }
 
 function deleteEmployee(i){
-  if(!confirm('Delete '+DATA.employees[i].name+'?'))return;
-  DATA.employees.splice(i,1);saveStore();renderEmployees();
+  if(!confirm('Delete '+DATA.employees[i].name+'?\n\nThis will also remove all their payroll records.'))return;
+  const deletedName=DATA.employees[i].name;
+  DATA.employees.splice(i,1);
+  // Remove deleted employee from all payroll runs
+  DATA.payrollRuns.forEach(run=>{
+    run.results=run.results.filter(r=>r.empName!==deletedName);
+  });
+  // Remove empty payroll runs (no results left)
+  DATA.payrollRuns=DATA.payrollRuns.filter(run=>run.results.length>0);
+  saveStore();renderEmployees();refreshActiveSections();
 }
 
 // ==================== PAYROLL PROCESSING ====================
@@ -1147,6 +1172,7 @@ function savePayrollRun(){
   window._pendingPayroll=null;
   alert('Payroll saved successfully!');
   renderPayrollInput(); // Refresh to show updated quarter status
+  refreshActiveSections(); // Sync salary records, dashboard, etc.
 }
 
 // ==================== PAYSLIPS ====================
@@ -1255,7 +1281,7 @@ function getMonthlyData(year){
       if(!monthly[key]){
         const normalized=r.empName.trim().toLowerCase();
         if(nameLookup[normalized]){key=nameLookup[normalized];}
-        else{monthly[r.empName]=Array.from({length:12},()=>null);nameLookup[r.empName.trim().toLowerCase()]=r.empName;key=r.empName;}
+        else return; // Skip employees not in current list (deleted)
       }
       monthly[key][m]={gross:r.gross,netPay:r.netPay,nisEmp:r.nisEmp,nisEr:r.nisEr,edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,heartEr:r.heartEr||0,incomeTax:r.incomeTax,totalEmpDeductions:r.totalEmpDeductions,totalErContributions:r.totalErContributions};
     });
@@ -2433,15 +2459,17 @@ async function mergeFromCloud() {
             DATA.employees.forEach(e => { localNameMap[e.name.trim().toLowerCase()] = e.name; });
             backupData.data.payrollRuns.forEach(cloudRun => {
                 if (!localDates.includes(cloudRun.date)) {
-                    // Reconcile employee names in cloud run to match local names
-                    cloudRun.results.forEach(r => {
-                        if (r.empName) {
-                            const match = localNameMap[r.empName.trim().toLowerCase()];
-                            if (match && match !== r.empName) r.empName = match;
-                        }
+                    // Reconcile employee names and filter to only current employees
+                    cloudRun.results = cloudRun.results.filter(r => {
+                        if (!r.empName) return false;
+                        const match = localNameMap[r.empName.trim().toLowerCase()];
+                        if (match) { r.empName = match; return true; }
+                        return false; // Skip employees not in current list
                     });
-                    DATA.payrollRuns.push(cloudRun);
-                    mergeStats.payrollRunsAdded++;
+                    if (cloudRun.results.length > 0) {
+                        DATA.payrollRuns.push(cloudRun);
+                        mergeStats.payrollRunsAdded++;
+                    }
                 }
             });
         }
