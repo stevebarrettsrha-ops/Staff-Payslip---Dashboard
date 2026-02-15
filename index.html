@@ -417,6 +417,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-header">
         <div><h2>Payroll Dashboard</h2><div class="subtitle">C.E.S.T.I.S — Overview</div></div>
         <div class="btn-group">
+          <button class="btn btn-ghost" id="globalRefreshBtn" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
           <button class="btn btn-ghost" onclick="exportAllData()">📥 Export Data</button>
           <button class="btn btn-primary" onclick="showPage('payroll')">▶ Run Payroll</button>
         </div>
@@ -436,7 +437,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
     <div id="page-employees" class="page">
       <div class="page-header">
         <div><h2>Employee Management</h2><div class="subtitle">Full-Time & Part-Time Staff Records</div></div>
-        <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+        <div class="btn-group">
+          <button class="btn btn-ghost" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>All Employees</h3></div>
@@ -448,6 +452,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
     <div id="page-payroll" class="page">
       <div class="page-header">
         <div><h2>Process Payroll</h2><div class="subtitle">Calculate deductions and generate payslips</div></div>
+        <button class="btn btn-ghost" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
       </div>
 
       <!-- Quarter Navigation -->
@@ -499,6 +504,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
     <div id="page-payslips" class="page">
       <div class="page-header">
         <div><h2>Payslip Generator</h2><div class="subtitle">View, preview and print individual payslips</div></div>
+        <button class="btn btn-ghost" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>Select Employee & Pay Cycle</h3></div>
@@ -526,6 +532,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
     <div id="page-deductions" class="page">
       <div class="page-header">
         <div><h2>Tax Deductions Summary</h2><div class="subtitle">Statutory contributions by pay cycle</div></div>
+        <button class="btn btn-ghost" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>Monthly Contribution Totals</h3></div>
@@ -548,6 +555,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="page-header">
         <div><h2>Salary Records</h2><div class="subtitle">Monthly &amp; Quarterly Salary Records for All Employees</div></div>
         <div class="btn-group">
+          <button class="btn btn-ghost" onclick="refreshAllData()" title="Refresh &amp; sync all data">🔄 Refresh</button>
           <button class="btn btn-ghost" onclick="exportSalaryRecordsCSV()">📥 Export CSV</button>
         </div>
       </div>
@@ -701,6 +709,45 @@ function refreshActiveSections(){
   if(currentPageName==='payslips')populatePayslipSelects();
   if(currentPageName==='salaryrecords')renderSalaryRecords();
   if(currentPageName==='deductions')renderTaxSummary();
+}
+
+// Full data refresh: clean orphaned payroll records, re-render current page
+function refreshAllData(){
+  // Build lookup of current employee names
+  const empNames=new Set(DATA.employees.map(e=>e.name));
+  const empNameLower={};
+  DATA.employees.forEach(e=>{empNameLower[e.name.trim().toLowerCase()]=e;});
+  let cleaned=0;
+  // Remove payroll results for employees that no longer exist
+  DATA.payrollRuns.forEach(run=>{
+    const before=run.results.length;
+    run.results=run.results.filter(r=>{
+      if(!r.empName)return false;
+      if(empNames.has(r.empName))return true;
+      // Try case-insensitive match and fix the name
+      const match=empNameLower[r.empName.trim().toLowerCase()];
+      if(match){r.empName=match.name;r.empType=match.type;r.designation=match.designation;r.trn=match.trn;r.nis=match.nis;return true;}
+      return false;
+    });
+    cleaned+=before-run.results.length;
+  });
+  // Remove empty payroll runs
+  const runsBefore=DATA.payrollRuns.length;
+  DATA.payrollRuns=DATA.payrollRuns.filter(run=>run.results.length>0);
+  const runsRemoved=runsBefore-DATA.payrollRuns.length;
+  // Sync employee fields in remaining payroll results
+  DATA.payrollRuns.forEach(run=>{
+    run.results.forEach(r=>{
+      const emp=DATA.employees.find(e=>e.name===r.empName);
+      if(emp){r.empType=emp.type;r.designation=emp.designation;r.trn=emp.trn;r.nis=emp.nis;}
+    });
+  });
+  if(cleaned>0||runsRemoved>0)saveStore();
+  // Re-render the current page
+  showPage(currentPageName);
+  // Flash the refresh button briefly
+  const btn=document.getElementById('globalRefreshBtn');
+  if(btn){btn.style.color='var(--green)';setTimeout(()=>{btn.style.color='';},600);}
 }
 
 // ==================== DASHBOARD ====================
