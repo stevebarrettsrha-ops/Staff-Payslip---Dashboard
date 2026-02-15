@@ -215,9 +215,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
 
 /* ===== LOGIN SCREEN ===== */
-.login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif}
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;overflow-y:auto;padding:2rem 1rem}
 .login-screen.hidden{display:none}
-.login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.login-wrapper{width:100%;max-width:420px;display:flex;flex-direction:column;gap:1.25rem}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);position:relative}
 .login-brand{text-align:center;margin-bottom:2rem}
 .login-brand h1{font-size:1.6rem;font-weight:700;color:var(--accent);letter-spacing:3px;margin-bottom:.25rem}
 .login-brand p{font-size:.8rem;color:var(--text-dim)}
@@ -244,6 +245,37 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .login-cloud-banner .banner-text strong{color:var(--text);font-weight:600}
 .login-user-info{text-align:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)}
 .login-user-info span{font-size:.75rem;color:var(--text-muted)}
+
+/* First Time Here? Section */
+.first-time-section{width:100%}
+.first-time-heading{text-align:center;font-size:.8rem;color:var(--text-muted);margin-bottom:.75rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:.75rem}
+.first-time-heading::before,.first-time-heading::after{content:'';flex:1;height:1px;background:var(--border)}
+.first-time-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.5rem;width:100%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.25);transition:all .3s}
+.first-time-card.connecting{border-color:rgba(59,130,246,.4)}
+.first-time-card.syncing{border-color:rgba(99,102,241,.4)}
+.first-time-card.synced{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.03)}
+.first-time-card.error{border-color:rgba(239,68,68,.3)}
+.ft-cloud-icon{font-size:2.2rem;margin-bottom:.75rem;display:block}
+.ft-title{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:.35rem}
+.ft-desc{font-size:.78rem;color:var(--text-dim);line-height:1.4;margin-bottom:1rem;max-width:320px;margin-left:auto;margin-right:auto}
+.ft-sync-btn{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.5rem;background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 15px rgba(59,130,246,.3)}
+.ft-sync-btn:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.4)}
+.ft-sync-btn:active{transform:translateY(0)}
+.ft-sync-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;filter:none}
+.ft-sync-btn .ft-btn-spinner{display:none;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.ft-sync-btn.loading .ft-btn-spinner{display:inline-block}
+.ft-sync-btn.loading .ft-btn-icon{display:none}
+.ft-status{margin-top:.75rem;font-size:.78rem;color:var(--text-dim);min-height:1.2em;transition:all .3s}
+.ft-status.success{color:var(--green)}
+.ft-status.error{color:var(--danger)}
+.ft-status.info{color:var(--primary)}
+.ft-skip{display:block;text-align:center;margin-top:.75rem;font-size:.75rem;color:var(--text-muted);cursor:pointer;background:none;border:none;font-family:inherit;transition:color .15s;text-decoration:none}
+.ft-skip:hover{color:var(--text-dim);text-decoration:underline}
+.ft-google-account{display:flex;align-items:center;gap:.6rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .75rem;margin-top:.75rem;font-size:.78rem;text-align:left}
+.ft-google-account .ft-avatar{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0}
+.ft-google-account .ft-account-info{flex:1;min-width:0}
+.ft-google-account .ft-account-name{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-google-account .ft-account-email{color:var(--text-muted);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* User badge in sidebar */
 .sidebar-user{padding:.6rem 1rem;margin:.25rem .5rem;background:var(--surface);border-radius:8px;display:flex;align-items:center;gap:.6rem;cursor:default}
@@ -402,35 +434,58 @@ tr:hover td{background:rgba(59,130,246,.04)}
 
 <!-- ===== LOGIN SCREEN ===== -->
 <div class="login-screen" id="loginScreen">
-  <div class="login-card" style="position:relative">
-    <div class="login-syncing-overlay" id="loginSyncOverlay">
-      <div class="login-syncing-spinner"></div>
-      <div class="login-syncing-text" id="loginSyncOverlayText">Syncing from cloud...</div>
-      <div class="login-syncing-sub" id="loginSyncOverlaySub">Checking for your account credentials</div>
+  <div class="login-wrapper">
+    <div class="login-card" style="position:relative">
+      <div class="login-syncing-overlay" id="loginSyncOverlay">
+        <div class="login-syncing-spinner"></div>
+        <div class="login-syncing-text" id="loginSyncOverlayText">Syncing from cloud...</div>
+        <div class="login-syncing-sub" id="loginSyncOverlaySub">Checking for your account credentials</div>
+      </div>
+      <div class="login-brand">
+        <h1>C.E.S.T.I.S</h1>
+        <p>Payroll Management System</p>
+      </div>
+      <div id="loginCloudBanner" class="login-cloud-banner" style="display:none">
+        <span class="banner-icon" id="loginBannerIcon"></span>
+        <span class="banner-text" id="loginBannerText"></span>
+      </div>
+      <div class="login-error" id="loginError">Invalid username or password</div>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+      <div class="login-user-info"><span>Contact your administrator for access</span></div>
     </div>
-    <div class="login-brand">
-      <h1>C.E.S.T.I.S</h1>
-      <p>Payroll Management System</p>
+
+    <!-- First Time Here? Section -->
+    <div class="first-time-section" id="firstTimeSection">
+      <div class="first-time-heading">First Time Here?</div>
+      <div class="first-time-card" id="firstTimeCard">
+        <span class="ft-cloud-icon" id="ftCloudIcon">&#9729;</span>
+        <div class="ft-title" id="ftTitle">Sync with Google Cloud</div>
+        <div class="ft-desc" id="ftDesc">Sign in with Google to load your credentials and data directly from the school's Google Drive folder.</div>
+        <button class="ft-sync-btn" id="ftSyncBtn" onclick="firstTimeGoogleSync()">
+          <span class="ft-btn-icon">&#9729;</span>
+          <span class="ft-btn-spinner"></span>
+          <span class="ft-btn-label" id="ftBtnLabel">Sync with Google Cloud</span>
+        </button>
+        <div class="ft-status" id="ftStatus"></div>
+        <div id="ftGoogleAccount" class="ft-google-account" style="display:none">
+          <div class="ft-avatar" id="ftAvatar">?</div>
+          <div class="ft-account-info">
+            <div class="ft-account-name" id="ftAccountName"></div>
+            <div class="ft-account-email" id="ftAccountEmail"></div>
+          </div>
+        </div>
+        <button class="ft-skip" onclick="dismissFirstTime()">I already have local data &mdash; skip this</button>
+      </div>
     </div>
-    <div id="loginCloudBanner" class="login-cloud-banner" style="display:none">
-      <span class="banner-icon" id="loginBannerIcon">☁️</span>
-      <span class="banner-text" id="loginBannerText"></span>
-    </div>
-    <div class="login-error" id="loginError">Invalid username or password</div>
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
-    <div style="margin-top:1rem;text-align:center">
-      <button onclick="loginCloudSync()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:.5rem 1rem;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;width:100%;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'" id="loginCloudBtn">☁️ Sync Credentials from Cloud</button>
-      <div id="loginCloudStatus" style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;display:none"></div>
-    </div>
-    <div class="login-user-info"><span>Contact your administrator for access</span></div>
+    <div id="loginCloudStatus" style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;display:none"></div>
   </div>
 </div>
 
@@ -3444,8 +3499,11 @@ async function doLogin(){
   }
 
   if(!user){
-    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">If you are a new user, click "Sync Credentials from Cloud" below or contact your administrator.</span>';
-    errEl.style.display='block';loginBtnEl.disabled=false;return;
+    errEl.innerHTML='Invalid username or password. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">If you are a new user, use <strong>Sync with Google Cloud</strong> below to load your account.</span>';
+    errEl.style.display='block';loginBtnEl.disabled=false;
+    // Show the First Time section so user can sync
+    showFirstTimeSection();
+    return;
   }
   errEl.style.display='none';
   currentUser={id:user.id,username:user.username,displayName:user.displayName,role:user.role};
@@ -3574,63 +3632,113 @@ function doLogout(){
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
   document.getElementById('loginError').style.display='none';
+  // Reset first-time card to default state
+  var ftCard=document.getElementById('firstTimeCard');
+  if(ftCard)ftCard.className='first-time-card';
+  var ftBtn=document.getElementById('ftSyncBtn');
+  if(ftBtn){ftBtn.classList.remove('loading');ftBtn.disabled=false;}
+  var ftLabel=document.getElementById('ftBtnLabel');
+  if(ftLabel)ftLabel.textContent='Sync with Google Cloud';
+  var ftStatus=document.getElementById('ftStatus');
+  if(ftStatus){ftStatus.className='ft-status';ftStatus.textContent='';}
+  document.getElementById('ftCloudIcon').textContent='\u2601';
+  document.getElementById('ftTitle').textContent='Sync with Google Cloud';
+  document.getElementById('ftDesc').textContent='Sign in with Google to load your credentials and data directly from the school\'s Google Drive folder.';
+  document.getElementById('ftGoogleAccount').style.display='none';
+  // Re-run auto-sync check to set correct state
+  autoSyncCredentialsOnLoad();
 }
 
-// Sync credentials from cloud on login screen (works without being logged in)
+// Legacy loginCloudSync — redirects to the new First Time Google sync
 async function loginCloudSync(){
-  var statusEl=document.getElementById('loginCloudStatus');
-  var btn=document.getElementById('loginCloudBtn');
-  statusEl.style.display='block';
-  statusEl.style.color='var(--text-muted)';
-  statusEl.textContent='Connecting to Google Drive...';
+  showFirstTimeSection();
+  firstTimeGoogleSync();
+}
+
+// ==================== FIRST TIME GOOGLE SYNC ====================
+
+// First-Time Google Sign-In & Sync — prominent card on login screen
+async function firstTimeGoogleSync(){
+  var btn=document.getElementById('ftSyncBtn');
+  var label=document.getElementById('ftBtnLabel');
+  var status=document.getElementById('ftStatus');
+  var card=document.getElementById('firstTimeCard');
+  var accountEl=document.getElementById('ftGoogleAccount');
+
+  // Set connecting state
+  btn.classList.add('loading');
   btn.disabled=true;
-  updateLoginCloudBanner('syncing','Connecting to Google Drive...');
+  label.textContent='Connecting...';
+  status.className='ft-status info';
+  status.textContent='Waiting for Google sign-in...';
+  card.className='first-time-card connecting';
 
-  // Check for saved token
-  var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
-  var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
-  var fileId=localStorage.getItem('schoolDashboardCloudFileId');
-
-  if(!token||!expiry||new Date(expiry)<=new Date()){
-    // Try to get token via Google Identity Services
-    if(typeof google!=='undefined'&&google.accounts&&google.accounts.oauth2){
-      try{
-        token=await new Promise(function(resolve,reject){
-          var client=google.accounts.oauth2.initTokenClient({
-            client_id:GOOGLE_DRIVE_CONFIG.CLIENT_ID,
-            scope:GOOGLE_DRIVE_CONFIG.SCOPES,
-            callback:function(resp){
-              if(resp.error)reject(new Error(resp.error));
-              else resolve(resp.access_token);
-            }
-          });
-          client.requestAccessToken();
+  var token=null;
+  // Try to get token via Google Identity Services
+  if(typeof google!=='undefined'&&google.accounts&&google.accounts.oauth2){
+    try{
+      token=await new Promise(function(resolve,reject){
+        var client=google.accounts.oauth2.initTokenClient({
+          client_id:GOOGLE_DRIVE_CONFIG.CLIENT_ID,
+          scope:GOOGLE_DRIVE_CONFIG.SCOPES,
+          callback:function(resp){
+            if(resp.error)reject(new Error(resp.error));
+            else resolve(resp.access_token);
+          }
         });
-        // Save token
-        googleAccessToken=token;
-        var tokenExpiry=new Date(Date.now()+3500*1000);
-        localStorage.setItem('schoolDashboardGoogleAccessToken',token);
-        localStorage.setItem('schoolDashboardGoogleTokenExpiry',tokenExpiry.toISOString());
-      }catch(err){
-        statusEl.style.color='var(--danger)';
-        statusEl.textContent='Google sign-in cancelled or failed. Try again.';
-        updateLoginCloudBanner('error','Google sign-in failed. Try again.');
-        btn.disabled=false;
-        return;
-      }
-    }else{
-      statusEl.style.color='var(--danger)';
-      statusEl.textContent='Google API not loaded. Refresh the page and try again.';
-      updateLoginCloudBanner('error','Google API not loaded. Refresh the page.');
+        client.requestAccessToken();
+      });
+      // Save token
+      googleAccessToken=token;
+      var tokenExpiry=new Date(Date.now()+3500*1000);
+      localStorage.setItem('schoolDashboardGoogleAccessToken',token);
+      localStorage.setItem('schoolDashboardGoogleTokenExpiry',tokenExpiry.toISOString());
+    }catch(err){
+      btn.classList.remove('loading');
       btn.disabled=false;
+      label.textContent='Sync with Google Cloud';
+      status.className='ft-status error';
+      status.textContent='Google sign-in cancelled or failed. Try again.';
+      card.className='first-time-card error';
       return;
     }
+  }else{
+    btn.classList.remove('loading');
+    btn.disabled=false;
+    label.textContent='Sync with Google Cloud';
+    status.className='ft-status error';
+    status.textContent='Google API not loaded. Please refresh the page.';
+    card.className='first-time-card error';
+    return;
   }
 
-  statusEl.textContent='Searching for backup file...';
-  updateLoginCloudBanner('syncing','Searching for cloud backup...');
+  // Fetch Google account info to show who signed in
+  try{
+    var aboutResp=await fetch('https://www.googleapis.com/drive/v3/about?fields=user',{
+      headers:{'Authorization':'Bearer '+token}
+    });
+    if(aboutResp.ok){
+      var aboutData=await aboutResp.json();
+      var gUser=aboutData.user;
+      if(gUser){
+        var displayName=gUser.displayName||'Google User';
+        var email=gUser.emailAddress||'';
+        document.getElementById('ftAccountName').textContent=displayName;
+        document.getElementById('ftAccountEmail').textContent=email;
+        document.getElementById('ftAvatar').textContent=displayName.charAt(0).toUpperCase();
+        accountEl.style.display='flex';
+      }
+    }
+  }catch(e){/* non-critical */}
+
+  // Now sync data from Google Drive
+  label.textContent='Syncing data...';
+  status.className='ft-status info';
+  status.textContent='Searching for backup in Google Drive...';
+  card.className='first-time-card syncing';
 
   try{
+    var fileId=localStorage.getItem('schoolDashboardCloudFileId');
     // Find backup file
     if(!fileId){
       var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
@@ -3648,72 +3756,90 @@ async function loginCloudSync(){
     }
 
     if(!fileId){
-      statusEl.style.color='var(--accent)';
-      statusEl.textContent='No cloud backup found. Ask your admin to save data to cloud first.';
-      updateLoginCloudBanner('error','No cloud backup found. Ask your admin to save data to cloud first.');
+      btn.classList.remove('loading');
       btn.disabled=false;
+      label.textContent='Sync with Google Cloud';
+      status.className='ft-status error';
+      status.textContent='No backup file found in Google Drive. Ask your admin to save data to cloud first.';
+      card.className='first-time-card error';
       return;
     }
 
-    statusEl.textContent='Downloading credentials from cloud...';
-    updateLoginCloudBanner('syncing','Downloading credentials from cloud...');
+    status.textContent='Downloading data from Google Drive...';
 
     var resp=await fetch(
       'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',
       {headers:{'Authorization':'Bearer '+token}}
     );
-    if(!resp.ok)throw new Error('Download failed');
+    if(!resp.ok)throw new Error('Download failed ('+resp.status+')');
     var backupData=await resp.json();
 
-    // Extract and save users
+    // Merge users
     var synced=false;
     if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
-      var cloudUsers=backupData.users;
-      // Merge with any local users (keep local passwords where they exist)
       var localUsers=loadUsers();
-      cloudUsers.forEach(function(cu){
+      var added=0;
+      backupData.users.forEach(function(cu){
         var existing=localUsers.find(function(u){return u.username.toLowerCase()===cu.username.toLowerCase();});
-        if(!existing){
-          localUsers.push(cu);
-        }else{
-          existing.displayName=cu.displayName;
-          existing.role=cu.role;
-          // Update password from cloud (cloud is source of truth for credentials)
-          if(cu.password)existing.password=cu.password;
-        }
+        if(!existing){localUsers.push(cu);added++;}
+        else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
       });
-      if(!localUsers.some(function(u){return u.username==='cestisadmin';})){
-        localUsers.push(getDefaultUsers()[0]);
-      }
+      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
       synced=true;
     }
+    // Sync main data & permissions
+    if(backupData.data){DATA=backupData.data;saveStore();}
+    if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
 
-    // Also sync the main data
-    if(backupData.data){
-      DATA=backupData.data;
-      saveStore();
-    }
-    if(backupData.permissions&&Array.isArray(backupData.permissions)){
-      savePermissions(backupData.permissions);
-    }
+    // Update cloud state so the main app recognizes the connection
+    isCloudConnected=true;
+    cloudFileId=fileId;
+    lastSyncTime=new Date();
+    localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
 
+    btn.classList.remove('loading');
     if(synced){
       var userCount=loadUsers().length;
-      statusEl.style.color='var(--green)';
-      statusEl.textContent='Synced! '+userCount+' user account(s) loaded from cloud. You can now sign in.';
-      updateLoginCloudBanner('synced','Cloud synced — <strong>'+userCount+'</strong> account(s) ready. You can now sign in.');
+      label.textContent='Synced!';
+      btn.disabled=true;
+      status.className='ft-status success';
+      status.textContent=userCount+' user account(s) loaded. You can now sign in above.';
+      card.className='first-time-card synced';
+      document.getElementById('ftCloudIcon').textContent='\u2705';
+      document.getElementById('ftTitle').textContent='Cloud Data Loaded';
+      document.getElementById('ftDesc').textContent='Your credentials and payroll data have been synced from Google Drive. Enter your username and password above to sign in.';
+      updateLoginCloudBanner('synced','Cloud synced — <strong>'+userCount+'</strong> account(s) ready. Sign in above.');
     }else{
-      statusEl.style.color='var(--accent)';
-      statusEl.textContent='Cloud backup found but contains no user accounts. Using local accounts.';
-      updateLoginCloudBanner('','Cloud backup found but contains no user accounts.');
+      label.textContent='Sync with Google Cloud';
+      btn.disabled=false;
+      status.className='ft-status';
+      status.textContent='Connected to cloud but no user accounts found in backup.';
+      card.className='first-time-card';
     }
   }catch(err){
-    statusEl.style.color='var(--danger)';
-    statusEl.textContent='Failed to sync: '+err.message;
-    updateLoginCloudBanner('error','Sync failed: '+err.message);
+    btn.classList.remove('loading');
+    btn.disabled=false;
+    label.textContent='Retry Sync';
+    status.className='ft-status error';
+    status.textContent='Sync failed: '+err.message;
+    card.className='first-time-card error';
   }
-  btn.disabled=false;
+}
+
+function dismissFirstTime(){
+  var section=document.getElementById('firstTimeSection');
+  if(section)section.style.display='none';
+  localStorage.setItem('cestisFirstTimeDismissed','1');
+}
+
+function showFirstTimeSection(){
+  var section=document.getElementById('firstTimeSection');
+  if(section)section.style.display='';
+}
+function hideFirstTimeSection(){
+  var section=document.getElementById('firstTimeSection');
+  if(section)section.style.display='none';
 }
 
 // Auto-sync credentials from cloud on page load (silent, non-blocking)
@@ -3722,15 +3848,27 @@ async function autoSyncCredentialsOnLoad(){
   var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
   var fileId=localStorage.getItem('schoolDashboardCloudFileId');
   var statusEl=document.getElementById('loginCloudStatus');
+  var dismissed=localStorage.getItem('cestisFirstTimeDismissed');
+
   if(!token||!expiry||new Date(expiry)<=new Date()){
-    // No valid token — show helpful banner if cloud was previously connected
+    // No valid token — show the First Time section unless dismissed
     var hasEverConnected=localStorage.getItem('schoolDashboardCloudFileId')||localStorage.getItem('schoolDashboardLastSyncTime');
     if(hasEverConnected){
-      updateLoginCloudBanner('error','Cloud session expired. <strong>Sign in</strong> or click <strong>Sync from Cloud</strong> to refresh credentials.');
+      updateLoginCloudBanner('error','Cloud session expired. Click <strong>Sync with Google Cloud</strong> below to reconnect.');
+      // Show first time section with reconnect messaging
+      showFirstTimeSection();
+      document.getElementById('ftTitle').textContent='Reconnect to Google Cloud';
+      document.getElementById('ftDesc').textContent='Your previous session has expired. Sign in with Google again to sync the latest data from the school\'s Drive folder.';
+    }else if(!dismissed){
+      showFirstTimeSection();
+    }else{
+      hideFirstTimeSection();
     }
     return;
   }
-  // Show syncing state in banner
+
+  // Valid token exists — hide First Time section and auto-sync silently
+  hideFirstTimeSection();
   updateLoginCloudBanner('syncing','Auto-syncing credentials from cloud...');
   if(statusEl){statusEl.style.display='block';statusEl.style.color='var(--text-muted)';statusEl.textContent='Auto-syncing credentials from cloud...';}
   try{
@@ -3742,12 +3880,14 @@ async function autoSyncCredentialsOnLoad(){
     }
     if(!fileId){
       updateLoginCloudBanner('error','No cloud backup found. Ask your admin to save data to cloud.');
+      showFirstTimeSection();
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
       return;
     }
     var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
     if(!resp.ok){
-      updateLoginCloudBanner('error','Could not reach cloud backup. Try Sync from Cloud.');
+      updateLoginCloudBanner('error','Could not reach cloud backup. Try syncing again.');
+      showFirstTimeSection();
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
       return;
     }
@@ -3773,7 +3913,8 @@ async function autoSyncCredentialsOnLoad(){
     }
   }catch(err){
     console.log('[AutoSync] Silent sync failed:',err.message);
-    updateLoginCloudBanner('error','Auto-sync failed. Click Sync from Cloud to retry.');
+    updateLoginCloudBanner('error','Auto-sync failed. Try syncing again below.');
+    showFirstTimeSection();
     if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
   }
 }
