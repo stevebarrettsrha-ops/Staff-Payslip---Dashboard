@@ -404,6 +404,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div style="margin-top:1rem;text-align:center">
+      <button onclick="loginCloudSync()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:.5rem 1rem;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;width:100%;transition:all .15s" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'" id="loginCloudBtn">☁️ Sync Credentials from Cloud</button>
+      <div id="loginCloudStatus" style="font-size:.72rem;color:var(--text-muted);margin-top:.5rem;display:none"></div>
+    </div>
     <div class="login-user-info"><span>Contact your administrator for access</span></div>
   </div>
 </div>
@@ -2020,7 +2024,8 @@ function loadPresetData(){
 
 // ==================== IMPORT/EXPORT ====================
 function exportAllData(){
-  const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
+  const exportObj={data:DATA,users:loadUsers(),permissions:loadPermissions(),version:'1.1',timestamp:new Date().toISOString(),savedBy:currentUser?currentUser.displayName:'Export'};
+  const blob=new Blob([JSON.stringify(exportObj,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`CESTIS_Payroll_${new Date().toISOString().split('T')[0]}.json`;
@@ -2032,8 +2037,18 @@ function importData(evt){
   if(!file)return;
   const reader=new FileReader();
   reader.onload=function(e){
-    try{DATA=JSON.parse(e.target.result);saveStore();alert('Data imported!');location.reload();}
-    catch(err){alert('Invalid file format');}
+    try{
+      var parsed=JSON.parse(e.target.result);
+      // Support both old format (direct DATA) and new format (wrapped with users/permissions)
+      if(parsed.data&&parsed.version){
+        DATA=parsed.data;
+        if(parsed.users&&Array.isArray(parsed.users))saveUsers(parsed.users);
+        if(parsed.permissions&&Array.isArray(parsed.permissions))savePermissions(parsed.permissions);
+      }else{
+        DATA=parsed;
+      }
+      saveStore();alert('Data imported!');location.reload();
+    }catch(err){alert('Invalid file format');}
   };
   reader.readAsText(file);
   evt.target.value='';
@@ -2452,10 +2467,12 @@ async function saveToCloud() {
         await findExistingBackupFile();
 
         const backupData = {
-            version: '1.0',
+            version: '1.1',
             timestamp: new Date().toISOString(),
-            savedBy: 'Dashboard User',
-            data: DATA
+            savedBy: currentUser?currentUser.displayName:'Dashboard User',
+            data: DATA,
+            users: loadUsers(),
+            permissions: loadPermissions()
         };
 
         const jsonContent = JSON.stringify(backupData, null, 2);
@@ -2555,7 +2572,7 @@ async function saveToCloud() {
         localStorage.setItem('schoolDashboardLastSyncTime', lastSyncTime.toISOString());
         updateLastSyncDisplay();
 
-        lastSavedBy = 'Dashboard User';
+        lastSavedBy = currentUser?currentUser.displayName:'Dashboard User';
         cloudFileTimestamp = new Date().toISOString();
         updateLastSavedByDisplay();
 
@@ -2618,6 +2635,19 @@ async function syncFromCloud() {
         DATA = backupData.data;
         saveStore();
 
+        // Restore users and permissions from cloud if available
+        if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
+          // Ensure default admin always exists
+          var cloudUsers=backupData.users;
+          if(!cloudUsers.some(function(u){return u.username==='cestisadmin';})){
+            cloudUsers.push(getDefaultUsers()[0]);
+          }
+          saveUsers(cloudUsers);
+        }
+        if(backupData.permissions&&Array.isArray(backupData.permissions)){
+          savePermissions(backupData.permissions);
+        }
+
         // Update last sync time
         lastSyncTime = new Date();
         localStorage.setItem('schoolDashboardLastSyncTime', lastSyncTime.toISOString());
@@ -2625,6 +2655,8 @@ async function syncFromCloud() {
 
         // Refresh UI
         renderDashboard();
+        if(currentPageName==='usermanagement')renderUserManagement();
+        if(currentPageName==='permissions')renderPermissions();
 
         setCloudSyncing(false);
 
@@ -2742,6 +2774,44 @@ async function mergeFromCloud() {
 
         saveStore();
 
+        // Merge users from cloud — add new users, update existing (keep local passwords if user exists)
+        if(backupData.users&&Array.isArray(backupData.users)){
+          var localUsers=loadUsers();
+          var usersAdded=0;
+          backupData.users.forEach(function(cloudUser){
+            var existing=localUsers.find(function(u){return u.username.toLowerCase()===cloudUser.username.toLowerCase();});
+            if(!existing){
+              localUsers.push(cloudUser);
+              usersAdded++;
+            }else{
+              // Update fields from cloud (except password — keep local password if it exists)
+              existing.displayName=cloudUser.displayName;
+              existing.role=cloudUser.role;
+              if(!existing.password&&cloudUser.password)existing.password=cloudUser.password;
+            }
+          });
+          // Ensure default admin always exists
+          if(!localUsers.some(function(u){return u.username==='cestisadmin';})){
+            localUsers.push(getDefaultUsers()[0]);
+          }
+          saveUsers(localUsers);
+          mergeStats.usersAdded=usersAdded;
+        }
+
+        // Merge permissions from cloud — add new permission records
+        if(backupData.permissions&&Array.isArray(backupData.permissions)){
+          var localPerms=loadPermissions();
+          var permsAdded=0;
+          backupData.permissions.forEach(function(cloudPerm){
+            if(!localPerms.some(function(p){return p.id===cloudPerm.id;})){
+              localPerms.push(cloudPerm);
+              permsAdded++;
+            }
+          });
+          savePermissions(localPerms);
+          mergeStats.permsAdded=permsAdded;
+        }
+
         // Update last sync time
         lastSyncTime = new Date();
         localStorage.setItem('schoolDashboardLastSyncTime', lastSyncTime.toISOString());
@@ -2753,6 +2823,8 @@ async function mergeFromCloud() {
 
         // Refresh UI
         renderDashboard();
+        if(currentPageName==='usermanagement')renderUserManagement();
+        if(currentPageName==='permissions')renderPermissions();
 
         setCloudSyncing(false);
 
@@ -2761,9 +2833,10 @@ async function mergeFromCloud() {
         summary += 'Merge Summary:\n';
         summary += '- Employees added: ' + mergeStats.employeesAdded + '\n';
         summary += '- Payroll runs added: ' + mergeStats.payrollRunsAdded + '\n';
+        summary += '- Users synced: ' + (mergeStats.usersAdded||0) + ' new\n';
         summary += '- Settings updated: ' + (mergeStats.settingsMerged ? 'Yes' : 'No (local settings preserved)') + '\n';
 
-        const totalAdded = mergeStats.employeesAdded + mergeStats.payrollRunsAdded;
+        const totalAdded = mergeStats.employeesAdded + mergeStats.payrollRunsAdded + (mergeStats.usersAdded||0);
         if (totalAdded === 0 && !mergeStats.settingsMerged) {
             summary += '\nNo new data found — your local data already contains everything from the cloud.';
         } else {
@@ -3146,12 +3219,19 @@ function savePermissions(perms){localStorage.setItem(PERMS_KEY,JSON.stringify(pe
 
 function doLogin(){
   const username=document.getElementById('loginUsername').value.trim().toLowerCase();
-  const password=document.getElementById('loginPassword').value;
+  const password=document.getElementById('loginPassword').value.trim();
   const errEl=document.getElementById('loginError');
   if(!username||!password){errEl.textContent='Please enter username and password';errEl.style.display='block';return;}
+  // Ensure users are persisted before checking
+  if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
   const users=loadUsers();
   const user=users.find(u=>u.username.toLowerCase()===username&&u.password===password);
-  if(!user){errEl.textContent='Invalid username or password';errEl.style.display='block';return;}
+  if(!user){
+    // Check if username exists but password wrong
+    const nameExists=users.some(u=>u.username.toLowerCase()===username);
+    errEl.textContent=nameExists?'Incorrect password. Please try again.':'User not found. Contact your administrator.';
+    errEl.style.display='block';return;
+  }
   errEl.style.display='none';
   currentUser={id:user.id,username:user.username,displayName:user.displayName,role:user.role};
   localStorage.setItem(SESSION_KEY,JSON.stringify(currentUser));
@@ -3167,6 +3247,137 @@ function doLogout(){
   document.getElementById('loginUsername').value='';
   document.getElementById('loginPassword').value='';
   document.getElementById('loginError').style.display='none';
+}
+
+// Sync credentials from cloud on login screen (works without being logged in)
+async function loginCloudSync(){
+  var statusEl=document.getElementById('loginCloudStatus');
+  var btn=document.getElementById('loginCloudBtn');
+  statusEl.style.display='block';
+  statusEl.style.color='var(--text-muted)';
+  statusEl.textContent='Connecting to Google Drive...';
+  btn.disabled=true;
+
+  // Check for saved token
+  var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
+  var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+  var fileId=localStorage.getItem('schoolDashboardCloudFileId');
+
+  if(!token||!expiry||new Date(expiry)<=new Date()){
+    // Try to get token via Google Identity Services
+    if(typeof google!=='undefined'&&google.accounts&&google.accounts.oauth2){
+      try{
+        token=await new Promise(function(resolve,reject){
+          var client=google.accounts.oauth2.initTokenClient({
+            client_id:GOOGLE_DRIVE_CONFIG.CLIENT_ID,
+            scope:GOOGLE_DRIVE_CONFIG.SCOPES,
+            callback:function(resp){
+              if(resp.error)reject(new Error(resp.error));
+              else resolve(resp.access_token);
+            }
+          });
+          client.requestAccessToken();
+        });
+        // Save token
+        googleAccessToken=token;
+        var tokenExpiry=new Date(Date.now()+3500*1000);
+        localStorage.setItem('schoolDashboardGoogleAccessToken',token);
+        localStorage.setItem('schoolDashboardGoogleTokenExpiry',tokenExpiry.toISOString());
+      }catch(err){
+        statusEl.style.color='var(--danger)';
+        statusEl.textContent='Google sign-in cancelled or failed. Try again.';
+        btn.disabled=false;
+        return;
+      }
+    }else{
+      statusEl.style.color='var(--danger)';
+      statusEl.textContent='Google API not loaded. Refresh the page and try again.';
+      btn.disabled=false;
+      return;
+    }
+  }
+
+  statusEl.textContent='Searching for backup file...';
+
+  try{
+    // Find backup file
+    if(!fileId){
+      var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
+      var searchResp=await fetch(
+        'https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',
+        {headers:{'Authorization':'Bearer '+token}}
+      );
+      if(searchResp.ok){
+        var searchData=await searchResp.json();
+        if(searchData.files&&searchData.files.length>0){
+          fileId=searchData.files[0].id;
+          localStorage.setItem('schoolDashboardCloudFileId',fileId);
+        }
+      }
+    }
+
+    if(!fileId){
+      statusEl.style.color='var(--accent)';
+      statusEl.textContent='No cloud backup found. Ask your admin to save data to cloud first.';
+      btn.disabled=false;
+      return;
+    }
+
+    statusEl.textContent='Downloading credentials from cloud...';
+
+    var resp=await fetch(
+      'https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',
+      {headers:{'Authorization':'Bearer '+token}}
+    );
+    if(!resp.ok)throw new Error('Download failed');
+    var backupData=await resp.json();
+
+    // Extract and save users
+    var synced=false;
+    if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
+      var cloudUsers=backupData.users;
+      // Merge with any local users (keep local passwords where they exist)
+      var localUsers=loadUsers();
+      cloudUsers.forEach(function(cu){
+        var existing=localUsers.find(function(u){return u.username.toLowerCase()===cu.username.toLowerCase();});
+        if(!existing){
+          localUsers.push(cu);
+        }else{
+          existing.displayName=cu.displayName;
+          existing.role=cu.role;
+          // Update password from cloud (cloud is source of truth for credentials)
+          if(cu.password)existing.password=cu.password;
+        }
+      });
+      if(!localUsers.some(function(u){return u.username==='cestisadmin';})){
+        localUsers.push(getDefaultUsers()[0]);
+      }
+      saveUsers(localUsers);
+      synced=true;
+    }
+
+    // Also sync the main data
+    if(backupData.data){
+      DATA=backupData.data;
+      saveStore();
+    }
+    if(backupData.permissions&&Array.isArray(backupData.permissions)){
+      savePermissions(backupData.permissions);
+    }
+
+    if(synced){
+      var userCount=loadUsers().length;
+      statusEl.style.color='var(--green)';
+      statusEl.textContent='Synced! '+userCount+' user account(s) loaded from cloud. You can now sign in.';
+    }else{
+      statusEl.style.color='var(--accent)';
+      statusEl.textContent='Cloud backup found but contains no user accounts. Using local accounts.';
+    }
+  }catch(err){
+    statusEl.style.color='var(--danger)';
+    statusEl.textContent='Failed to sync: '+err.message;
+  }
+  btn.disabled=false;
 }
 
 function checkSession(){
@@ -3224,14 +3435,15 @@ function editUser(uid){
 function saveUser(){
   const displayName=document.getElementById('newUserDisplayName').value.trim();
   const username=document.getElementById('newUserUsername').value.trim().toLowerCase();
-  const password=document.getElementById('newUserPassword').value;
+  const password=document.getElementById('newUserPassword').value.trim();
   const role=document.getElementById('newUserRole').value;
   if(!displayName||!username){alert('Display name and username are required');return;}
+  // Always ensure localStorage has users before modifying
+  if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
   const users=loadUsers();
   if(editingUserId){
     const idx=users.findIndex(u=>u.id===editingUserId);
     if(idx<0)return;
-    // Check username uniqueness (excluding self)
     if(users.some(u=>u.id!==editingUserId&&u.username.toLowerCase()===username)){alert('Username already taken');return;}
     users[idx].displayName=displayName;
     users[idx].username=username;
@@ -3248,6 +3460,7 @@ function saveUser(){
   saveUsers(users);
   closeAddUserModal();
   renderUserManagement();
+  alert('User "'+displayName+'" saved successfully.\nUsername: '+username+'\nRole: '+role);
 }
 
 function deleteUser(uid){
@@ -3503,12 +3716,14 @@ function renderPermissions(){
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded',function(){
-    // Ensure default admin exists
+    // Ensure users are always persisted to localStorage
     var users=loadUsers();
+    var needsSave=!localStorage.getItem(USERS_KEY);
     if(!users.some(function(u){return u.username==='cestisadmin';})){
       users.push(getDefaultUsers()[0]);
-      saveUsers(users);
+      needsSave=true;
     }
+    if(needsSave)saveUsers(users);
 
     // Check for existing session
     if(checkSession()){
