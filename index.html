@@ -231,6 +231,9 @@ tr:hover td{background:rgba(59,130,246,.04)}
 /* ===== LOGIN SCREEN ===== */
 .login-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;overflow-y:auto;padding:2rem 1rem}
 .login-screen.hidden{display:none}
+.hidden{display:none!important}
+#dashboardContainer.visible{display:flex!important}
+.settings-btn.hidden{display:none!important}
 .login-wrapper{width:100%;max-width:420px;display:flex;flex-direction:column;gap:1.25rem}
 .login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);position:relative}
 .login-brand{text-align:center;margin-bottom:2rem}
@@ -244,6 +247,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
 .login-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .login-btn:active{transform:translateY(0)}
 .login-error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#f87171;padding:.6rem .8rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;display:none}
+.login-error.show{display:block}
 .login-syncing-overlay{position:absolute;inset:0;background:rgba(17,17,21,.85);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;gap:.75rem;display:none}
 .login-syncing-overlay.show{display:flex}
 .login-syncing-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
@@ -495,8 +499,8 @@ tr:hover td{background:rgba(59,130,246,.04)}
 </head>
 <body>
 
-<!-- ===== LOGIN SCREEN ===== -->
-<div class="login-screen" id="loginScreen">
+<!-- ===== LOGIN PAGE ===== -->
+<div class="login-screen" id="loginPage">
   <div class="login-wrapper">
     <div class="login-card" style="position:relative">
       <div class="login-syncing-overlay" id="loginSyncOverlay">
@@ -512,31 +516,35 @@ tr:hover td{background:rgba(59,130,246,.04)}
         <span class="banner-icon" id="loginBannerIcon"></span>
         <span class="banner-text" id="loginBannerText"></span>
       </div>
-      <div class="login-error" id="loginError">Invalid username or password</div>
+      <div class="login-error" id="loginError"><span id="loginErrorText">Invalid username or password</span></div>
 
       <!-- Step 1: Username/Password -->
-      <div id="loginStep1">
+      <form id="loginStep1" onsubmit="handleLogin(event)">
         <div class="form-group">
           <label>Username</label>
-          <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+          <input type="text" id="username" placeholder="Enter username" autocomplete="username">
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
         </div>
-        <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+        <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.75rem">
           <a onclick="showForgotPassword()" style="color:var(--primary);cursor:pointer;font-size:.82rem;text-decoration:none">Forgot Password?</a>
           <a onclick="showFirstTimeSection();sessionStorage.removeItem('firstTimeSyncDismissed')" style="color:var(--primary);cursor:pointer;font-size:.78rem;text-decoration:none">Sync from Cloud</a>
         </div>
-        <div class="login-user-info"><span>Contact your administrator for access</span></div>
+        <div class="login-user-info">
+          <span id="loggedInUserName" style="display:none"></span>
+          <span id="loggedInUserRole" style="display:none"></span>
+          <span>Contact your administrator for access</span>
+        </div>
         <!-- Debug: Verify Stored Accounts -->
         <div style="text-align:center;margin-top:.5rem">
-          <button onclick="toggleLoginDebug()" style="background:none;border:none;color:var(--text-muted);font-size:.65rem;cursor:pointer;opacity:.5;font-family:inherit" id="loginDebugToggle">Verify stored accounts</button>
+          <button type="button" onclick="toggleLoginDebug()" style="background:none;border:none;color:var(--text-muted);font-size:.65rem;cursor:pointer;opacity:.5;font-family:inherit" id="loginDebugToggle">Verify stored accounts</button>
           <div id="loginDebugPanel" style="display:none;margin-top:.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem;text-align:left;font-size:.72rem;color:var(--text-dim);max-height:200px;overflow-y:auto">
           </div>
         </div>
-      </div>
+      </form>
 
       <!-- Forgot Password Step: Enter Email -->
       <div id="loginStepForgotPassword" style="display:none">
@@ -647,7 +655,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
   </div>
 </div>
 
-<div class="app" id="appContainer" style="display:none">
+<div class="app" id="dashboardContainer" style="display:none">
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -661,7 +669,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
         <div class="user-name" id="sidebarUserName">Admin</div>
         <div class="user-role" id="sidebarUserRole">admin</div>
       </div>
-      <button class="logout-btn" onclick="doLogout()" title="Sign Out">🚪</button>
+      <button class="logout-btn" onclick="handleLogout()" title="Sign Out">🚪</button>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">📊</span><span class="nav-text">Dashboard</span></div>
@@ -671,7 +679,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
       <div class="nav-item" onclick="showPage('salaryrecords')"><span class="icon">📆</span><span class="nav-text">Salary Records</span></div>
       <div class="nav-item" onclick="showPage('deductions')"><span class="icon">📋</span><span class="nav-text">Tax Summary</span></div>
       <div class="nav-item" onclick="showPage('permissions')"><span class="icon">🔑</span><span class="nav-text">Permissions</span><span class="notif-badge" id="permNotifBadge" style="display:none">0</span></div>
-      <div class="nav-item" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
+      <div class="nav-item settings-btn" onclick="showPage('settings')"><span class="icon">⚙️</span><span class="nav-text">Settings</span></div>
       <div class="nav-item" id="navUserMgmt" onclick="showPage('usermanagement')" style="display:none"><span class="icon">🛡️</span><span class="nav-text">User Management</span></div>
       <div style="border-top:1px solid var(--border);margin:0.5rem 0"></div>
       <a href="https://stevebarrettsrha-ops.github.io/CESTIS---Cashbook-Dashboard/" target="_blank" rel="noopener noreferrer" class="nav-item" style="text-decoration:none;color:inherit"><span class="icon">📒</span><span class="nav-text">Cashbook Dashboard</span></a>
@@ -1194,7 +1202,7 @@ let currentPageName='dashboard';
 function showPage(name){
   // Access control: restrict pages by role
   if(currentUser){
-    if(name==='usermanagement'&&currentUser.role!=='admin'){name='dashboard';}
+    if(name==='usermanagement'&&!isAdminRole(currentUser.role)){name='dashboard';}
   }
   currentPageName=name;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1564,7 +1572,7 @@ function selectPayrollMonth(year,month){
     return d.getFullYear()===year&&d.getMonth()===month;
   });
   if(existingRun){
-    const isAdmin=currentUser&&currentUser.role==='admin';
+    const isAdmin=currentUser&&isAdminRole(currentUser.role);
     const hasEditPerm=hasPayrollEditPermission();
     let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th><th>Payslip</th>'+(hasEditPerm?'<th>Actions</th>':'')+'</tr></thead><tbody>';
     let totals={gross:0,nis:0,ed:0,it:0,nht:0,heart:0,ded:0,net:0};
@@ -3132,7 +3140,7 @@ async function syncFromCloud() {
         if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
           // Ensure default admin always exists
           var cloudUsers=backupData.users;
-          if(!cloudUsers.some(function(u){return u.username==='cestisadmin';})){
+          if(!cloudUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';})){
             cloudUsers.push(getDefaultUsers()[0]);
           }
           saveUsers(cloudUsers);
@@ -3284,7 +3292,7 @@ async function mergeFromCloud() {
             }
           });
           // Ensure default admin always exists
-          if(!localUsers.some(function(u){return u.username==='cestisadmin';})){
+          if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';})){
             localUsers.push(getDefaultUsers()[0]);
           }
           saveUsers(localUsers);
@@ -3684,14 +3692,22 @@ window.addEventListener('online', function(){
 });
 
 // ==================== AUTH & USER MANAGEMENT ====================
-const USERS_KEY='cestisUsers';
-const SESSION_KEY='cestisSession';
+// XSS Protection Utility
+function escapeHtml(text){
+  if(!text)return '';
+  var div=document.createElement('div');
+  div.textContent=text;
+  return div.innerHTML;
+}
+
+// Storage keys — matching CESTIS-MAIN-DASHBOARD
+const USERS_KEY='dashboardUsers';
 const PERMS_KEY='cestisPermissions';
 let currentUser=null;
+let pendingTwoFAUser=null;
 let permTimerInterval=null;
 
 // 2FA temporary storage
-let pendingTwoFAUser=null;
 let pendingTwoFASecret=null;
 let pendingBackupCodes=null;
 
@@ -3705,19 +3721,61 @@ let currentOTP=null;
 let otpExpiry=null;
 let pendingResetUser=null;
 
-// Default admin user
-function getDefaultUsers(){
-  return [{
-    id:'admin_001',username:'cestisadmin',password:'cestisadmin123$',
-    displayName:'Main Administrator',email:'admin@cestis.com',role:'admin',createdAt:new Date().toISOString()
-  }];
-}
+// Default admin user — matching CESTIS-MAIN-DASHBOARD
+const defaultUsers=[{
+  id:'admin_001',
+  username:'Cestisadmin',
+  password:'cestisadmin123$',
+  displayName:'System Administrator',
+  email:'admin@cestis.com',
+  role:'Administrator',
+  isAdmin:true,
+  createdAt:new Date().toISOString()
+}];
+
+function getDefaultUsers(){return JSON.parse(JSON.stringify(defaultUsers));}
+
+// Migrate from old cestisUsers key to new dashboardUsers key
+(function migrateUsersKey(){
+  var oldKey='cestisUsers';
+  var oldData=localStorage.getItem(oldKey);
+  var newData=localStorage.getItem(USERS_KEY);
+  if(oldData&&!newData){
+    localStorage.setItem(USERS_KEY,oldData);
+    localStorage.removeItem(oldKey);
+    console.log('[Migration] Migrated user data from cestisUsers to dashboardUsers');
+  }
+})();
+
+// Also migrate session from old localStorage to sessionStorage if needed
+(function migrateSession(){
+  var oldSessionKey='cestisSession';
+  var oldSession=localStorage.getItem(oldSessionKey);
+  if(oldSession&&sessionStorage.getItem('isLoggedIn')!=='true'){
+    try{
+      var s=JSON.parse(oldSession);
+      sessionStorage.setItem('isLoggedIn','true');
+      sessionStorage.setItem('loggedInUser',JSON.stringify({
+        username:s.username,displayName:s.displayName,
+        role:s.role,isAdmin:s.role==='admin'||s.role==='Administrator',
+        twoFactorEnabled:false
+      }));
+    }catch(e){}
+    localStorage.removeItem(oldSessionKey);
+    console.log('[Migration] Migrated session from localStorage to sessionStorage');
+  }
+})();
+
+let users=JSON.parse(localStorage.getItem(USERS_KEY)||'null')||getDefaultUsers();
 
 function loadUsers(){
   try{const d=localStorage.getItem(USERS_KEY);return d?JSON.parse(d):getDefaultUsers();}
   catch(e){return getDefaultUsers();}
 }
-function saveUsers(users){localStorage.setItem(USERS_KEY,JSON.stringify(users));}
+function saveUsers(usrs){
+  if(usrs)users=usrs;
+  localStorage.setItem(USERS_KEY,JSON.stringify(users));
+}
 
 function loadPermissions(){
   try{const d=localStorage.getItem(PERMS_KEY);return d?JSON.parse(d):[];}
@@ -3725,66 +3783,149 @@ function loadPermissions(){
 }
 function savePermissions(perms){localStorage.setItem(PERMS_KEY,JSON.stringify(perms));}
 
-async function doLogin(){
-  const username=document.getElementById('loginUsername').value.trim().toLowerCase();
-  const password=document.getElementById('loginPassword').value.trim();
-  const errEl=document.getElementById('loginError');
-  const loginBtnEl=document.getElementById('loginBtn');
-  if(!username||!password){errEl.textContent='Please enter username and password';errEl.style.display='block';return;}
-  loginBtnEl.disabled=true;
-  // Ensure users are persisted before checking
-  if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
-  var users=loadUsers();
-  console.log('[Login] Attempting login for:',username,'| Available users:',JSON.stringify(users.map(function(u){return {username:u.username,hasPassword:!!u.password,pwLen:u.password?u.password.length:0};})));
-  var user=users.find(function(u){return u.username.toLowerCase()===username&&u.password===password;});
+// ==================== LOGIN HANDLER (CESTIS-MAIN-DASHBOARD PATTERN) ====================
+async function handleLogin(event){
+  if(event)event.preventDefault();
+  var username=document.getElementById('username').value.trim();
+  var password=document.getElementById('password').value.trim();
+  var loginError=document.getElementById('loginError');
+  var loginBtnEl=document.getElementById('loginBtn');
 
-  // If local credentials fail, auto-sync from cloud and retry
-  if(!user){
-    var cloudSynced=await attemptCloudSyncForLogin();
-    if(cloudSynced){
-      users=loadUsers();
-      user=users.find(function(u){return u.username.toLowerCase()===username&&u.password===password;});
-    }
-  }
-
-  if(!user){
-    // Give a specific error so user knows what went wrong
-    var matchByUsername=users.find(function(u){return u.username.toLowerCase()===username;});
-    var availableNames=users.map(function(u){return u.username;}).join(', ');
-    if(matchByUsername){
-      // Username found but password is wrong
-      errEl.innerHTML='<strong>Incorrect password</strong> for user "'+username+'". Please check your password and try again.'+
-        '<span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Make sure you are entering the exact password your administrator created for you (passwords are case-sensitive).</span>';
-      console.log('[Login] Password mismatch for "'+username+'" — entered length:',password.length,'stored length:',matchByUsername.password?matchByUsername.password.length:'NO PASSWORD');
-    }else{
-      // Username not found at all
-      errEl.innerHTML='<strong>Account not found</strong>: "'+username+'" does not exist.'+
-        '<span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Available accounts: <strong>'+availableNames+'</strong><br>If your account is missing, click <strong>Sync with Google Cloud</strong> below to load it.</span>';
-      console.log('[Login] Username "'+username+'" not found. Available:',availableNames);
-    }
-    errEl.style.display='block';loginBtnEl.disabled=false;
-    // Show the First Time section so user can sync
-    showFirstTimeSection();
+  if(!username||!password){
+    document.getElementById('loginErrorText').textContent='Please enter username and password';
+    loginError.classList.add('show');
     return;
   }
-  errEl.style.display='none';
-  // Check if 2FA is enabled for this user
-  if(user.twoFactorEnabled&&user.twoFactorSecret){
-    pendingTwoFAUser=user;
-    document.getElementById('loginStep1').style.display='none';
-    document.getElementById('loginStep2FA').style.display='block';
-    document.getElementById('login2FACode').focus();
+  loginBtnEl.disabled=true;
+
+  // Ensure users are persisted before checking
+  if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
+  users=loadUsers();
+
+  // Case-insensitive username match
+  var user=users.find(function(u){
+    return u.username.toLowerCase()===username.toLowerCase()&&u.password===password;
+  });
+
+  var usernameExists=users.find(function(u){
+    return u.username.toLowerCase()===username.toLowerCase();
+  });
+
+  if(user){
+    loginError.classList.remove('show');
+    if(user.twoFactorEnabled&&user.twoFactorSecret){
+      // Show 2FA step
+      pendingTwoFAUser=user;
+      document.getElementById('loginStep1').style.display='none';
+      document.getElementById('loginStep2FA').style.display='block';
+      document.getElementById('login2FACode').focus();
+      loginBtnEl.disabled=false;
+    }else{
+      completeLogin(user);
+    }
+  }else if(!usernameExists){
+    // Username not found locally — try cloud sync
+    loginError.classList.add('show');
+    var savedToken=localStorage.getItem('schoolDashboardGoogleAccessToken');
+    var savedExpiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+    var hasValidToken=savedToken&&savedExpiry&&new Date(savedExpiry)>new Date();
+
+    if(hasValidToken){
+      document.getElementById('loginErrorText').textContent='Account not found locally. Syncing from cloud...';
+      await autoSyncAndRetryLogin(username,password);
+    }else{
+      document.getElementById('loginErrorText').innerHTML='<strong>Account not found</strong>. Please use "Sync from Cloud" to load your account.';
+      showFirstTimeSection();
+    }
     loginBtnEl.disabled=false;
   }else{
-    completeLogin(user);
+    loginError.classList.add('show');
+    document.getElementById('loginErrorText').textContent='Invalid password. Please try again.';
+    loginBtnEl.disabled=false;
   }
 }
 
-// Complete the login process (after password and optional 2FA verification)
+// Cloud Auto-Sync & Retry Login (CESTIS-MAIN-DASHBOARD pattern)
+async function autoSyncAndRetryLogin(username,password){
+  var loginError=document.getElementById('loginError');
+  try{
+    var savedToken=localStorage.getItem('schoolDashboardGoogleAccessToken');
+    if(savedToken){
+      googleAccessToken=savedToken;
+      isCloudConnected=true;
+    }
+    if(!cloudFileId){
+      var savedFileId=localStorage.getItem('schoolDashboardCloudFileId');
+      if(savedFileId)cloudFileId=savedFileId;
+      else await findExistingBackupFile();
+    }
+    if(!cloudFileId){
+      document.getElementById('loginErrorText').textContent='No cloud backup found. Please contact your administrator.';
+      return;
+    }
+    showLoginSyncOverlay('Syncing from cloud...','Checking for your account credentials');
+
+    var response=await fetch(
+      'https://www.googleapis.com/drive/v3/files/'+cloudFileId+'?alt=media',
+      {headers:{'Authorization':'Bearer '+googleAccessToken}}
+    );
+    if(!response.ok)throw new Error('Failed to download from cloud');
+    var backup=await response.json();
+    if(!backup.users&&!backup.data)throw new Error('Invalid backup format');
+
+    // Restore data from cloud
+    if(backup.users){users=backup.users;localStorage.setItem(USERS_KEY,JSON.stringify(users));}
+    if(backup.data){DATA=backup.data;saveStore();}
+    if(backup.permissions&&Array.isArray(backup.permissions))savePermissions(backup.permissions);
+
+    lastSyncTime=new Date();
+    localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
+    hideLoginSyncOverlay();
+
+    // Retry login with synced data
+    var user=users.find(function(u){
+      return u.username.toLowerCase()===username.toLowerCase()&&u.password===password;
+    });
+    if(user){
+      loginError.classList.remove('show');
+      if(user.twoFactorEnabled&&user.twoFactorSecret){
+        pendingTwoFAUser=user;
+        document.getElementById('loginStep1').style.display='none';
+        document.getElementById('loginStep2FA').style.display='block';
+      }else{
+        completeLogin(user);
+      }
+    }else{
+      var usernameExistsAfterSync=users.find(function(u){return u.username.toLowerCase()===username.toLowerCase();});
+      document.getElementById('loginErrorText').textContent=usernameExistsAfterSync
+        ?'Cloud data synced, but the password is incorrect.'
+        :'Account not found even after syncing from cloud.';
+    }
+  }catch(error){
+    console.error('Auto-sync error:',error);
+    hideLoginSyncOverlay();
+    if(error.message.includes('invalid_token')||error.message.includes('Invalid Credentials')){
+      document.getElementById('loginErrorText').textContent='Cloud session expired. Please reconnect.';
+      localStorage.removeItem('schoolDashboardGoogleAccessToken');
+      localStorage.removeItem('schoolDashboardGoogleTokenExpiry');
+    }else{
+      document.getElementById('loginErrorText').textContent='Could not sync: '+error.message;
+    }
+    showFirstTimeSection();
+  }
+}
+
+// Complete Login (CESTIS-MAIN-DASHBOARD pattern — uses sessionStorage)
 function completeLogin(user){
-  currentUser={id:user.id,username:user.username,displayName:user.displayName,role:user.role};
-  localStorage.setItem(SESSION_KEY,JSON.stringify(currentUser));
-  // Reset login form state
+  currentUser=user;
+  sessionStorage.setItem('isLoggedIn','true');
+  sessionStorage.setItem('loggedInUser',JSON.stringify({
+    username:user.username,displayName:user.displayName,
+    role:user.role,isAdmin:user.isAdmin||user.role==='admin'||user.role==='Administrator',
+    twoFactorEnabled:user.twoFactorEnabled||false
+  }));
+  sessionStorage.setItem('cestisAttendanceCurrentUser',JSON.stringify(user));
+
   pendingTwoFAUser=null;
   document.getElementById('loginStep1').style.display='block';
   document.getElementById('loginStep2FA').style.display='none';
@@ -3794,51 +3935,148 @@ function completeLogin(user){
   if(login2FA)login2FA.value='';
   var loginBackup=document.getElementById('loginBackupCode');
   if(loginBackup)loginBackup.value='';
-  showApp();
+
+  checkAuth();
+  showNotification('Welcome, '+user.displayName+'!');
+  promptSyncOnLogin();
 }
 
-// Silent cloud sync attempt during login — tries to fetch latest user list from cloud
-async function attemptCloudSyncForLogin(){
-  var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
-  var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
-  var fileId=localStorage.getItem('schoolDashboardCloudFileId');
+// Check Auth & Session Management (CESTIS-MAIN-DASHBOARD pattern)
+function checkAuth(){
+  var isLoggedIn=sessionStorage.getItem('isLoggedIn')==='true';
+  var loginPage=document.getElementById('loginPage');
+  var dashboardContainer=document.getElementById('dashboardContainer');
+  var settingsBtn=document.querySelector('.settings-btn');
 
-  // If no valid token, try to obtain one via Google Identity Services
-  if(!token||!expiry||new Date(expiry)<=new Date()){
-    if(typeof google!=='undefined'&&google.accounts&&google.accounts.oauth2){
-      try{
-        token=await new Promise(function(resolve,reject){
-          var client=google.accounts.oauth2.initTokenClient({
-            client_id:GOOGLE_DRIVE_CONFIG.CLIENT_ID,
-            scope:GOOGLE_DRIVE_CONFIG.SCOPES,
-            callback:function(resp){
-              if(resp.error)reject(new Error(resp.error));
-              else resolve(resp.access_token);
-            }
-          });
-          client.requestAccessToken();
-        });
-        googleAccessToken=token;
-        var tokenExpiry=new Date(Date.now()+3500*1000);
-        localStorage.setItem('schoolDashboardGoogleAccessToken',token);
-        localStorage.setItem('schoolDashboardGoogleTokenExpiry',tokenExpiry.toISOString());
-      }catch(err){
-        console.log('[LoginSync] Google auth failed:',err.message);
-        return false;
-      }
-    }else{
-      console.log('[LoginSync] Google API not available');
-      return false;
+  if(isLoggedIn){
+    loginPage.classList.add('hidden');
+    dashboardContainer.classList.add('visible');
+    dashboardContainer.style.display='';
+    updateUserDisplay();
+
+    var loggedInUser=JSON.parse(sessionStorage.getItem('loggedInUser'));
+    if(loggedInUser){
+      currentUser=users.find(function(u){return u.username.toLowerCase()===loggedInUser.username.toLowerCase();})||loggedInUser;
     }
+
+    // Show/hide settings based on user role
+    if(loggedInUser&&(isAdminRole(loggedInUser.role)||loggedInUser.isAdmin)){
+      if(settingsBtn)settingsBtn.classList.remove('hidden');
+    }else{
+      if(settingsBtn)settingsBtn.classList.add('hidden');
+    }
+
+    // Update sidebar user info
+    document.getElementById('sidebarUser').style.display='';
+    if(currentUser.displayName){
+      document.getElementById('sidebarAvatar').textContent=currentUser.displayName.charAt(0).toUpperCase();
+      document.getElementById('sidebarUserName').textContent=currentUser.displayName;
+    }
+    var roleDisplay=isAdminRole(currentUser.role)?'Administrator':currentUser.role==='viewer'?'Viewer':'User';
+    document.getElementById('sidebarUserRole').textContent=roleDisplay;
+    // Show/hide admin-only nav
+    document.getElementById('navUserMgmt').style.display=isAdminRole(currentUser.role)||currentUser.isAdmin?'':'none';
+    updatePermBadge();
+    startPermTimer();
+    renderDashboard();
+  }else{
+    loginPage.classList.remove('hidden');
+    dashboardContainer.classList.remove('visible');
+    dashboardContainer.style.display='none';
+    currentUser=null;
   }
+}
 
-  // Show sync overlay
-  showLoginSyncOverlay('Syncing from cloud...','Checking for your account credentials');
+// Update user display from sessionStorage
+function updateUserDisplay(){
+  var loggedInUser=JSON.parse(sessionStorage.getItem('loggedInUser'));
+  if(loggedInUser){
+    document.getElementById('loggedInUserName').textContent=loggedInUser.displayName;
+    document.getElementById('loggedInUserRole').textContent=loggedInUser.role;
+  }
+}
 
+// Show notification helper
+function showNotification(message){
+  // Simple notification — auto-dismiss after 3 seconds
+  var notif=document.createElement('div');
+  notif.style.cssText='position:fixed;top:1rem;right:1rem;z-index:99999;background:var(--card);border:1px solid var(--green);border-radius:10px;padding:.8rem 1.2rem;color:var(--green);font-size:.85rem;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:opacity .3s;';
+  notif.textContent=message;
+  document.body.appendChild(notif);
+  setTimeout(function(){notif.style.opacity='0';setTimeout(function(){notif.remove();},300);},3000);
+}
+
+// Mandatory Post-Login Cloud Sync (CESTIS-MAIN-DASHBOARD pattern)
+function promptSyncOnLogin(){
+  var savedToken=localStorage.getItem('schoolDashboardGoogleAccessToken');
+  var savedExpiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+  setTimeout(function(){
+    if(!savedToken||!savedExpiry){showConnectCloudOnLoginModal();return;}
+    if(new Date(savedExpiry)<=new Date()){showConnectCloudOnLoginModal();return;}
+    showSyncOnLoginModal();
+  },500);
+}
+
+// Modal: prompt to connect to Google Drive after login
+function showConnectCloudOnLoginModal(){
+  var existing=document.getElementById('connectCloudOnLoginModal');
+  if(existing)existing.remove();
+  var modal=document.createElement('div');
+  modal.id='connectCloudOnLoginModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10001;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  modal.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:2rem;max-width:420px;width:90%;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,.5)">'
+    +'<div style="font-size:2rem;margin-bottom:.75rem">☁️</div>'
+    +'<h3 style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:.5rem">Connect to Google Cloud</h3>'
+    +'<p style="font-size:.85rem;color:var(--text-dim);line-height:1.5;margin-bottom:1.25rem">To keep your data synchronized across devices, please connect to Google Drive. This ensures your payroll data is backed up and always available.</p>'
+    +'<button onclick="closeConnectCloudOnLoginModal(true)" style="display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.5rem;background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(59,130,246,.3)">☁️ Connect & Sync with Google</button>'
+    +'<button onclick="closeConnectCloudOnLoginModal(false)" style="display:block;margin:.75rem auto 0;background:none;border:none;color:var(--text-muted);font-size:.78rem;cursor:pointer;font-family:inherit">Skip for now</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+
+function closeConnectCloudOnLoginModal(shouldConnect){
+  document.getElementById('connectCloudOnLoginModal')?.remove();
+  if(shouldConnect)connectToGoogleDrive();
+}
+
+// Modal: prompt to merge from cloud after login
+function showSyncOnLoginModal(){
+  var existing=document.getElementById('syncOnLoginModal');
+  if(existing)existing.remove();
+  var modal=document.createElement('div');
+  modal.id='syncOnLoginModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10001;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  modal.innerHTML='<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:2rem;max-width:420px;width:90%;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,.5)">'
+    +'<div style="font-size:2rem;margin-bottom:.75rem">🔀</div>'
+    +'<h3 style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:.5rem">Sync from Cloud</h3>'
+    +'<p style="font-size:.85rem;color:var(--text-dim);line-height:1.5;margin-bottom:1.25rem">Merge the latest data from Google Drive to ensure you have the most up-to-date payroll records and user accounts.</p>'
+    +'<button id="syncOnLoginMergeBtn" onclick="closeSyncOnLoginModal(true)" style="display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.5rem;background:var(--primary);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer;box-shadow:0 4px 15px rgba(59,130,246,.3)">🔀 Merge from Cloud</button>'
+    +'<button onclick="closeSyncOnLoginModal(false)" style="display:block;margin:.75rem auto 0;background:none;border:none;color:var(--text-muted);font-size:.78rem;cursor:pointer;font-family:inherit">Skip for now</button>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+
+async function closeSyncOnLoginModal(shouldSync){
+  if(!shouldSync){document.getElementById('syncOnLoginModal')?.remove();return;}
+  var mergeBtn=document.getElementById('syncOnLoginMergeBtn');
+  if(mergeBtn){mergeBtn.disabled=true;mergeBtn.textContent='⏳ Merging...';}
+  var success=await performAutoSyncOnLogin();
+  if(success){
+    document.getElementById('syncOnLoginModal')?.remove();
+    sessionStorage.setItem('cloudSyncCompleted','true');
+    showNotification('Cloud data merged successfully!');
+  }else{
+    if(mergeBtn){mergeBtn.disabled=false;mergeBtn.textContent='🔀 Retry Merge';}
+  }
+}
+
+async function performAutoSyncOnLogin(){
   try{
-    // Always search for the most recent backup file (clear stale cached ID)
-    fileId=null;
-    {
+    var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
+    if(!token)return false;
+    var fileId=localStorage.getItem('schoolDashboardCloudFileId');
+    if(!fileId){
+      // Search for backup file
       var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
       var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)&orderBy=modifiedTime%20desc&pageSize=1',{headers:{'Authorization':'Bearer '+token}});
       if(searchResp.ok){
@@ -3849,38 +4087,34 @@ async function attemptCloudSyncForLogin(){
         }
       }
     }
-    if(!fileId){hideLoginSyncOverlay();return false;}
-
+    if(!fileId)return false;
     var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
-    if(!resp.ok){hideLoginSyncOverlay();return false;}
-    var backupData=await resp.json();
+    if(!resp.ok)return false;
+    var backup=await resp.json();
 
-    if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
+    // Merge data from cloud
+    if(backup.users&&Array.isArray(backup.users)){
       var localUsers=loadUsers();
-      var added=0;
-      backupData.users.forEach(function(cu){
+      backup.users.forEach(function(cu){
         var existing=localUsers.find(function(u){return u.username.toLowerCase()===cu.username.toLowerCase();});
-        if(!existing){localUsers.push(cu);added++;}
+        if(!existing)localUsers.push(cu);
         else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
       });
-      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
+      users=localUsers;
       saveUsers(localUsers);
-      // Also sync main data and permissions
-      if(backupData.data){DATA=backupData.data;saveStore();}
-      if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
-      console.log('[LoginSync] Cloud sync complete:',localUsers.length,'users,',added,'new');
-      hideLoginSyncOverlay();
-      updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
-      return true;
     }
-    hideLoginSyncOverlay();
-    return false;
+    if(backup.data){DATA=backup.data;saveStore();}
+    if(backup.permissions&&Array.isArray(backup.permissions))savePermissions(backup.permissions);
+    lastSyncTime=new Date();
+    localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
+    return true;
   }catch(err){
-    console.log('[LoginSync] Cloud sync failed:',err.message);
-    hideLoginSyncOverlay();
+    console.error('[SyncOnLogin] Error:',err);
     return false;
   }
 }
+
+// findExistingBackupFile is defined in the cloud sync section above
 
 // Debug panel: show stored accounts on login screen
 function toggleLoginDebug(){
@@ -3943,16 +4177,19 @@ function updateLoginCloudBanner(type,message){
   text.innerHTML=message||'';
 }
 
-function doLogout(){
+function handleLogout(){
+  sessionStorage.removeItem('isLoggedIn');
+  sessionStorage.removeItem('loggedInUser');
+  sessionStorage.removeItem('firstTimeSyncDismissed');
+  sessionStorage.removeItem('cloudSyncCompleted');
+  sessionStorage.removeItem('cestisAttendanceCurrentUser');
   currentUser=null;
   pendingTwoFAUser=null;
-  localStorage.removeItem(SESSION_KEY);
   if(permTimerInterval){clearInterval(permTimerInterval);permTimerInterval=null;}
-  document.getElementById('appContainer').style.display='none';
-  document.getElementById('loginScreen').classList.remove('hidden');
-  document.getElementById('loginUsername').value='';
-  document.getElementById('loginPassword').value='';
-  document.getElementById('loginError').style.display='none';
+  checkAuth();
+  document.getElementById('username').value='';
+  document.getElementById('password').value='';
+  document.getElementById('loginError').classList.remove('show');
   // Reset all login steps to step 1
   document.getElementById('loginStep1').style.display='block';
   document.getElementById('loginStep2FA').style.display='none';
@@ -3975,8 +4212,23 @@ function doLogout(){
   document.getElementById('ftTitle').textContent='Sync with Google Cloud';
   document.getElementById('ftDesc').textContent='Sign in with Google to load your credentials and data directly from the school\'s Google Drive folder.';
   document.getElementById('ftGoogleAccount').style.display='none';
-  // Re-run auto-sync check to set correct state
-  autoSyncCredentialsOnLoad();
+  checkFirstTimeSyncPrompt();
+}
+
+// Legacy alias
+function doLogout(){handleLogout();}
+
+// Check if first-time sync prompt should be shown
+function checkFirstTimeSyncPrompt(){
+  // Show cloud sync prompt if only default admin exists
+  var localUsers=loadUsers();
+  var hasOnlyDefault=localUsers.length<=1&&localUsers[0]&&(localUsers[0].username.toLowerCase()==='cestisadmin');
+  var dismissed=sessionStorage.getItem('firstTimeSyncDismissed');
+  if(hasOnlyDefault&&!dismissed){
+    showFirstTimeSection();
+  }else{
+    autoSyncCredentialsOnLoad();
+  }
 }
 
 // Legacy loginCloudSync — redirects to the new First Time Google sync
@@ -4119,7 +4371,7 @@ async function firstTimeGoogleSync(){
         if(!existing){localUsers.push(cu);added++;}
         else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
       });
-      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
+      if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
       synced=true;
 
@@ -4242,7 +4494,7 @@ async function autoSyncCredentialsOnLoad(){
         if(!existing){localUsers.push(cu);added++;}
         else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
       });
-      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
+      if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
       if(backupData.data){DATA=backupData.data;saveStore();}
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
@@ -4263,27 +4515,20 @@ async function autoSyncCredentialsOnLoad(){
 
 function checkSession(){
   try{
-    const s=localStorage.getItem(SESSION_KEY);
-    if(s){currentUser=JSON.parse(s);return true;}
+    var isLoggedIn=sessionStorage.getItem('isLoggedIn')==='true';
+    if(isLoggedIn){
+      var loggedInUser=JSON.parse(sessionStorage.getItem('loggedInUser'));
+      if(loggedInUser){
+        currentUser=users.find(function(u){return u.username.toLowerCase()===loggedInUser.username.toLowerCase();})||loggedInUser;
+        return true;
+      }
+    }
   }catch(e){}
   return false;
 }
 
 function showApp(){
-  document.getElementById('loginScreen').classList.add('hidden');
-  document.getElementById('appContainer').style.display='';
-  // Update sidebar user info
-  document.getElementById('sidebarUser').style.display='';
-  document.getElementById('sidebarAvatar').textContent=currentUser.displayName.charAt(0).toUpperCase();
-  document.getElementById('sidebarUserName').textContent=currentUser.displayName;
-  document.getElementById('sidebarUserRole').textContent=currentUser.role==='admin'?'Administrator':currentUser.role==='viewer'?'Viewer':'User';
-  // Show/hide admin-only nav
-  document.getElementById('navUserMgmt').style.display=currentUser.role==='admin'?'':'none';
-  // Update permission badge
-  updatePermBadge();
-  // Start permission timer check
-  startPermTimer();
-  renderDashboard();
+  checkAuth();
 }
 
 // ==================== USER MANAGEMENT (Admin) ====================
@@ -4365,7 +4610,7 @@ function deleteUser(uid){
   const users=loadUsers();
   const u=users.find(x=>x.id===uid);
   if(!u)return;
-  if(u.username==='cestisadmin'){alert('Cannot delete the main administrator account');return;}
+  if(u.username.toLowerCase()==='cestisadmin'){alert('Cannot delete the main administrator account');return;}
   if(!confirm('Delete user "'+u.displayName+'"?'))return;
   saveUsers(users.filter(x=>x.id!==uid));
   renderUserManagement();
@@ -4373,23 +4618,24 @@ function deleteUser(uid){
   if(isCloudConnected&&googleAccessToken)autoSaveUsersToCloud();
 }
 
+function isAdminRole(role){return role==='admin'||role==='Administrator';}
 function renderUserManagement(){
-  if(!currentUser||currentUser.role!=='admin')return;
-  const users=loadUsers();
-  const admins=users.filter(u=>u.role==='admin').length;
-  const userCount=users.filter(u=>u.role==='user').length;
-  const viewers=users.filter(u=>u.role==='viewer').length;
-  const twoFACount=users.filter(u=>u.twoFactorEnabled).length;
+  if(!currentUser||!isAdminRole(currentUser.role))return;
+  const allUsers=loadUsers();
+  const admins=allUsers.filter(u=>isAdminRole(u.role)).length;
+  const userCount=allUsers.filter(u=>u.role==='user'||u.role==='User').length;
+  const viewers=allUsers.filter(u=>u.role==='viewer').length;
+  const twoFACount=allUsers.filter(u=>u.twoFactorEnabled).length;
   document.getElementById('userStats').innerHTML=
     '<div class="stat-card red"><div class="label">Admins</div><div class="value">'+admins+'</div><div class="sub">Full system access</div></div>'+
     '<div class="stat-card blue"><div class="label">Users</div><div class="value">'+userCount+'</div><div class="sub">Limited access</div></div>'+
     '<div class="stat-card gold"><div class="label">Viewers</div><div class="value">'+viewers+'</div><div class="sub">View only access</div></div>'+
-    '<div class="stat-card green"><div class="label">Total Users</div><div class="value">'+users.length+'</div><div class="sub">2FA enabled: '+twoFACount+'</div></div>';
+    '<div class="stat-card green"><div class="label">Total Users</div><div class="value">'+allUsers.length+'</div><div class="sub">2FA enabled: '+twoFACount+'</div></div>';
   var html='<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>2FA</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
-  users.forEach(function(u){
-    var roleClass=u.role==='admin'?'admin':u.role==='viewer'?'viewer':'user';
-    var roleLabel=u.role==='admin'?'Admin':u.role==='viewer'?'Viewer':'User';
-    var isMain=u.username==='cestisadmin';
+  allUsers.forEach(function(u){
+    var roleClass=isAdminRole(u.role)?'admin':u.role==='viewer'?'viewer':'user';
+    var roleLabel=isAdminRole(u.role)?'Admin':u.role==='viewer'?'Viewer':'User';
+    var isMain=u.username.toLowerCase()==='cestisadmin';
     var twofaBadge=u.twoFactorEnabled?
       '<span class="twofa-status-badge enabled">🔒 On</span>':
       '<span class="twofa-status-badge disabled">Off</span>';
@@ -4404,13 +4650,13 @@ function renderUserManagement(){
         (isMain?'':'<button class="btn btn-danger btn-sm" onclick="deleteUser(\''+u.id+'\')">Delete</button>')+
       '</div></td></tr>';
   });
-  if(users.length===0)html+='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem">No users</td></tr>';
+  if(allUsers.length===0)html+='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem">No users</td></tr>';
   html+='</tbody></table>';
 
   // Add 2FA section for current user
   html+='<div style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)">';
   html+='<h3 style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:1rem">🔐 Two-Factor Authentication (Your Account)</h3>';
-  var fullUser=users.find(function(u){return u.id===currentUser.id;});
+  var fullUser=allUsers.find(function(u){return u.id===currentUser.id||u.username.toLowerCase()===currentUser.username.toLowerCase();});
   if(fullUser&&fullUser.twoFactorEnabled){
     var unusedCodes=fullUser.backupCodes?fullUser.backupCodes.filter(function(bc){return !bc.used;}).length:0;
     html+='<div class="twofa-success"><strong>Two-Factor Authentication is ENABLED</strong>';
@@ -4589,15 +4835,15 @@ function confirmTwoFADisable(){
 // Verify 2FA code during login
 function verify2FALogin(){
   var code=document.getElementById('login2FACode').value.trim();
-  var errEl=document.getElementById('loginError');
-  if(!code||code.length!==6){errEl.textContent='Please enter a 6-digit code';errEl.style.display='block';return;}
-  if(!pendingTwoFAUser){errEl.textContent='Session expired. Please try again.';errEl.style.display='block';cancelTwoFALogin();return;}
+  var loginError=document.getElementById('loginError');
+  if(!code||code.length!==6){document.getElementById('loginErrorText').textContent='Please enter a 6-digit code';loginError.classList.add('show');return;}
+  if(!pendingTwoFAUser){document.getElementById('loginErrorText').textContent='Session expired. Please try again.';loginError.classList.add('show');cancelTwoFALogin();return;}
   if(verifyTOTPCode(pendingTwoFAUser.twoFactorSecret,code)){
-    errEl.style.display='none';
+    loginError.classList.remove('show');
     completeLogin(pendingTwoFAUser);
   }else{
-    errEl.textContent='Invalid code. Please try again.';
-    errEl.style.display='block';
+    document.getElementById('loginErrorText').textContent='Invalid code. Please try again.';
+    loginError.classList.add('show');
     document.getElementById('login2FACode').value='';
     document.getElementById('login2FACode').focus();
   }
@@ -4606,25 +4852,25 @@ function verify2FALogin(){
 // Verify backup code during login
 function verifyBackupCodeLogin(){
   var backupCode=document.getElementById('loginBackupCode').value.trim().toUpperCase();
-  var errEl=document.getElementById('loginError');
-  if(!backupCode){errEl.textContent='Please enter a backup code';errEl.style.display='block';return;}
-  if(!pendingTwoFAUser){errEl.textContent='Session expired. Please try again.';errEl.style.display='block';cancelTwoFALogin();return;}
+  var loginError=document.getElementById('loginError');
+  if(!backupCode){document.getElementById('loginErrorText').textContent='Please enter a backup code';loginError.classList.add('show');return;}
+  if(!pendingTwoFAUser){document.getElementById('loginErrorText').textContent='Session expired. Please try again.';loginError.classList.add('show');cancelTwoFALogin();return;}
   var codeIndex=pendingTwoFAUser.backupCodes?
     pendingTwoFAUser.backupCodes.findIndex(function(bc){return bc.code===backupCode&&!bc.used;}):
     -1;
   if(codeIndex!==-1){
-    var users=loadUsers();
-    var userIndex=users.findIndex(function(u){return u.id===pendingTwoFAUser.id;});
+    var allUsers=loadUsers();
+    var userIndex=allUsers.findIndex(function(u){return u.id===pendingTwoFAUser.id;});
     if(userIndex!==-1){
-      users[userIndex].backupCodes[codeIndex].used=true;
-      saveUsers(users);
-      pendingTwoFAUser=users[userIndex];
+      allUsers[userIndex].backupCodes[codeIndex].used=true;
+      saveUsers(allUsers);
+      pendingTwoFAUser=allUsers[userIndex];
     }
-    errEl.style.display='none';
+    loginError.classList.remove('show');
     completeLogin(pendingTwoFAUser);
   }else{
-    errEl.textContent='Invalid or already used backup code';
-    errEl.style.display='block';
+    document.getElementById('loginErrorText').textContent='Invalid or already used backup code';
+    loginError.classList.add('show');
     document.getElementById('loginBackupCode').value='';
     document.getElementById('loginBackupCode').focus();
   }
@@ -4643,8 +4889,8 @@ function cancelTwoFALogin(){
   document.getElementById('login2FACode').value='';
   var loginBackup=document.getElementById('loginBackupCode');
   if(loginBackup)loginBackup.value='';
-  document.getElementById('loginPassword').value='';
-  document.getElementById('loginError').style.display='none';
+  document.getElementById('password').value='';
+  document.getElementById('loginError').classList.remove('show');
 }
 
 // ==================== FORGOT PASSWORD / OTP EMAIL ====================
@@ -4658,7 +4904,7 @@ function showForgotPassword(){
   document.getElementById('loginStepForgotPassword').style.display='block';
   document.getElementById('forgotPasswordEmail').value='';
   document.getElementById('forgotPasswordError').style.display='none';
-  document.getElementById('loginError').style.display='none';
+  document.getElementById('loginError').classList.remove('show');
   document.getElementById('forgotPasswordEmail').focus();
 }
 
@@ -4668,9 +4914,9 @@ function cancelForgotPassword(){
   document.getElementById('loginStepForgotPassword').style.display='none';
   document.getElementById('loginStepOTP').style.display='none';
   document.getElementById('loginStepNewPassword').style.display='none';
-  document.getElementById('loginUsername').value='';
-  document.getElementById('loginPassword').value='';
-  document.getElementById('loginError').style.display='none';
+  document.getElementById('username').value='';
+  document.getElementById('password').value='';
+  document.getElementById('loginError').classList.remove('show');
   currentOTP=null;otpExpiry=null;pendingResetUser=null;
 }
 
@@ -4807,7 +5053,7 @@ const PERM_DURATION_MS=20*60*1000; // 20 minutes
 
 function submitPermissionRequest(){
   if(!currentUser){alert('Please log in');return;}
-  if(currentUser.role==='admin'){alert('Admins have full access — no permission needed');return;}
+  if(isAdminRole(currentUser.role)){alert('Admins have full access — no permission needed');return;}
   const reason=document.getElementById('permRequestReason').value.trim();
   if(!reason){alert('Please enter a reason for the request');return;}
   // Check for existing pending request
@@ -4828,7 +5074,7 @@ function submitPermissionRequest(){
 }
 
 function grantPermission(permId){
-  if(!currentUser||currentUser.role!=='admin')return;
+  if(!currentUser||!isAdminRole(currentUser.role))return;
   const perms=loadPermissions();
   const p=perms.find(x=>x.id===permId);
   if(!p)return;
@@ -4843,7 +5089,7 @@ function grantPermission(permId){
 }
 
 function denyPermission(permId){
-  if(!currentUser||currentUser.role!=='admin')return;
+  if(!currentUser||!isAdminRole(currentUser.role))return;
   const perms=loadPermissions();
   const p=perms.find(x=>x.id===permId);
   if(!p)return;
@@ -4856,7 +5102,7 @@ function denyPermission(permId){
 
 function hasPayrollEditPermission(){
   if(!currentUser)return false;
-  if(currentUser.role==='admin')return true;
+  if(isAdminRole(currentUser.role))return true;
   if(currentUser.role==='viewer')return false;
   // Check for active (non-expired) approved permission
   const perms=loadPermissions();
@@ -4887,7 +5133,7 @@ function closePermExpiredModal(){document.getElementById('permExpiredModal').cla
 function startPermTimer(){
   if(permTimerInterval)clearInterval(permTimerInterval);
   permTimerInterval=setInterval(function(){
-    if(!currentUser||currentUser.role==='admin')return;
+    if(!currentUser||isAdminRole(currentUser.role))return;
     // Check if any approved permission just expired
     const perms=loadPermissions();
     const now=new Date();
@@ -4914,7 +5160,7 @@ function startPermTimer(){
 function updatePermBadge(){
   const badge=document.getElementById('permNotifBadge');
   if(!badge)return;
-  if(currentUser&&currentUser.role==='admin'){
+  if(currentUser&&isAdminRole(currentUser.role)){
     const perms=loadPermissions();
     const pending=perms.filter(p=>p.status==='pending').length;
     badge.textContent=pending;
@@ -4926,7 +5172,7 @@ function updatePermBadge(){
 
 function updatePermStatusBanner(){
   const banner=document.getElementById('permStatusBanner');
-  if(!currentUser||currentUser.role==='admin'){banner.style.display='none';return;}
+  if(!currentUser||isAdminRole(currentUser.role)){banner.style.display='none';return;}
   const activePerm=getActivePermission();
   if(activePerm){
     const remaining=Math.max(0,Math.ceil((new Date(activePerm.expiresAt)-new Date())/1000));
@@ -4948,7 +5194,7 @@ function updatePermStatusBanner(){
 }
 
 function renderPermissions(){
-  const isAdmin=currentUser&&currentUser.role==='admin';
+  const isAdmin=currentUser&&isAdminRole(currentUser.role);
   const perms=loadPermissions();
   const now=new Date();
 
@@ -5016,17 +5262,18 @@ function renderPermissions(){
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded',function(){
     // Ensure users are always persisted to localStorage
-    var users=loadUsers();
+    users=loadUsers();
     var needsSave=!localStorage.getItem(USERS_KEY);
-    if(!users.some(function(u){return u.username==='cestisadmin';})){
+    // Ensure default admin always exists (case-insensitive check)
+    if(!users.some(function(u){return u.username.toLowerCase()==='cestisadmin';})){
       users.push(getDefaultUsers()[0]);
       needsSave=true;
     }
     if(needsSave)saveUsers(users);
 
-    // Check for existing session
+    // Check for existing session (CESTIS-MAIN-DASHBOARD uses sessionStorage)
     if(checkSession()){
-      showApp();
+      checkAuth();
     }else{
       // On login screen: auto-sync credentials from cloud if token is available
       autoSyncCredentialsOnLoad();
