@@ -787,7 +787,18 @@ function saveEmployee(){
     salary:parseFloat(document.getElementById('empSalary').value)||0
   };
   if(!emp.name){alert('Employee name is required');return;}
-  if(editingEmpIdx>=0)DATA.employees[editingEmpIdx]=emp;
+  if(editingEmpIdx>=0){
+    const oldName=DATA.employees[editingEmpIdx].name;
+    DATA.employees[editingEmpIdx]=emp;
+    // Propagate name change to all payroll runs so Salary Records stays in sync
+    if(oldName!==emp.name){
+      DATA.payrollRuns.forEach(run=>{
+        run.results.forEach(r=>{
+          if(r.empName===oldName)r.empName=emp.name;
+        });
+      });
+    }
+  }
   else DATA.employees.push(emp);
   saveStore();closeEmployeeModal();renderEmployees();
 }
@@ -831,7 +842,7 @@ function getQuarterRunsByMonth(fyStart,qDef,qi){
   const calYear=getCalendarYear(fyStart,qi);
   const result=[null,null,null];
   DATA.payrollRuns.forEach(run=>{
-    const d=new Date(run.date);
+    const d=parseLocalDate(run.date);
     if(d.getFullYear()!==calYear)return;
     const m=d.getMonth();
     const idx=qDef.months.indexOf(m);
@@ -958,7 +969,7 @@ function selectPayrollMonth(year,month){
 
   // Check if this month already has payroll
   const existingRun=DATA.payrollRuns.find(r=>{
-    const d=new Date(r.date);
+    const d=parseLocalDate(r.date);
     return d.getFullYear()===year&&d.getMonth()===month;
   });
   if(existingRun){
@@ -1119,11 +1130,11 @@ function savePayrollRun(){
   if(!window._pendingPayroll){alert('Calculate payroll first');return;}
 
   // Check if a payroll already exists for this month
-  const pendingDate=new Date(window._pendingPayroll.date);
+  const pendingDate=parseLocalDate(window._pendingPayroll.date);
   const pendingMonth=pendingDate.getMonth();
   const pendingYear=pendingDate.getFullYear();
   const existing=DATA.payrollRuns.find(r=>{
-    const d=new Date(r.date);
+    const d=parseLocalDate(r.date);
     return d.getFullYear()===pendingYear&&d.getMonth()===pendingMonth;
   });
   if(existing){
@@ -1159,11 +1170,11 @@ function generatePayslipPreview(){
   if(!result){alert('No payroll data found for this employee in selected cycle');return;}
 
   // Calculate YTD — only for same calendar year
-  const runYear=new Date(run.date).getFullYear();
+  const runYear=parseLocalDate(run.date).getFullYear();
   let ytd={nis:0,edTax:0,nht:0,incomeTax:0,gross:0,heartEr:0,netPay:0};
   DATA.payrollRuns.forEach((r,ri)=>{
     if(ri>cycIdx)return;
-    if(new Date(r.date).getFullYear()!==runYear)return;
+    if(parseLocalDate(r.date).getFullYear()!==runYear)return;
     const match=r.results.find(x=>x.empName===emp.name);
     if(match){ytd.nis+=match.nisEmp;ytd.edTax+=match.edTaxEmp;ytd.nht+=match.nhtEmp;ytd.incomeTax+=match.incomeTax;ytd.gross+=match.gross;ytd.heartEr+=(match.heartEr||0);ytd.netPay+=match.netPay;}
   });
@@ -1225,35 +1236,57 @@ const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 function getSalaryRecordYears(){
   const years=new Set();
   DATA.payrollRuns.forEach(r=>{
-    if(r.date){const y=new Date(r.date).getFullYear();years.add(y);}
+    if(r.date){const y=parseLocalDate(r.date).getFullYear();if(!isNaN(y))years.add(y);}
   });
   if(years.size===0)years.add(new Date().getFullYear());
   return Array.from(years).sort((a,b)=>b-a);
 }
 
+function parseLocalDate(dateStr){
+  // Parse YYYY-MM-DD as local time (not UTC) to avoid timezone off-by-one issues
+  if(!dateStr)return new Date(NaN);
+  const parts=dateStr.split('T')[0].split('-');
+  return new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+}
+
 function getMonthlyData(year){
   // Build month-by-month data for each employee from payroll runs
   const monthly={}; // empName -> [12 months of data]
+  // Build a lookup map for case-insensitive/trimmed name matching
+  const nameLookup={}; // lowercase trimmed name -> canonical key in monthly
   DATA.employees.forEach(e=>{
     monthly[e.name]=Array.from({length:12},()=>null);
+    nameLookup[e.name.trim().toLowerCase()]=e.name;
   });
   DATA.payrollRuns.forEach(run=>{
-    const d=new Date(run.date);
+    const d=parseLocalDate(run.date);
     if(d.getFullYear()!==year)return;
     const m=d.getMonth();
     run.results.forEach(r=>{
-      if(monthly[r.empName]){
-        monthly[r.empName][m]={
-          gross:r.gross,netPay:r.netPay,
-          nisEmp:r.nisEmp,nisEr:r.nisEr,
-          edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,
-          nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,
-          heartEr:r.heartEr||0,
-          incomeTax:r.incomeTax,
-          totalEmpDeductions:r.totalEmpDeductions,
-          totalErContributions:r.totalErContributions
-        };
+      if(!r.empName)return;
+      // Resolve the canonical name: exact match first, then case-insensitive/trimmed
+      let key=r.empName;
+      if(!monthly[key]){
+        const normalized=r.empName.trim().toLowerCase();
+        if(nameLookup[normalized]){
+          key=nameLookup[normalized];
+        }else{
+          // Employee exists in payroll data but not in current employee list — include them
+          monthly[r.empName]=Array.from({length:12},()=>null);
+          nameLookup[r.empName.trim().toLowerCase()]=r.empName;
+          key=r.empName;
+        }
       }
+      monthly[key][m]={
+        gross:r.gross,netPay:r.netPay,
+        nisEmp:r.nisEmp,nisEr:r.nisEr,
+        edTaxEmp:r.edTaxEmp,edTaxEr:r.edTaxEr,
+        nhtEmp:r.nhtEmp,nhtEr:r.nhtEr,
+        heartEr:r.heartEr||0,
+        incomeTax:r.incomeTax,
+        totalEmpDeductions:r.totalEmpDeductions,
+        totalErContributions:r.totalErContributions
+      };
     });
   });
   return monthly;
@@ -1268,7 +1301,8 @@ function renderSalaryRecords(){
 
   const year=parseInt(yearSel.value);
   const monthly=getMonthlyData(year);
-  const empNames=DATA.employees.map(e=>e.name);
+  // Include all employees: current list + any found only in payroll data
+  const empNames=Object.keys(monthly);
 
   // Main monthly gross table
   let html='<table><thead><tr><th>Employee</th>';
@@ -1282,7 +1316,8 @@ function renderSalaryRecords(){
     const emp=DATA.employees.find(e=>e.name===name);
     const data=monthly[name];
     let annualTotal=0;
-    html+=`<tr><td>${name} <span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span></td>`;
+    const typeTag=emp?`<span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span>`:'';
+    html+=`<tr><td>${name} ${typeTag}</td>`;
     for(let m=0;m<12;m++){
       const val=data[m]?data[m].gross:0;
       annualTotal+=val;
@@ -1401,7 +1436,8 @@ function renderQuarterlyTables(year,monthly,empNames){
     const emp=DATA.employees.find(e=>e.name===name);
     const data=monthly[name];
     let empAnnGross=0,empAnnNet=0;
-    eqhtml+=`<tr><td>${name} <span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span></td>`;
+    const typeTag=emp?`<span class="tag ${emp.type==='FT'?'tag-ft':'tag-pt'}" style="margin-left:.3rem">${emp.type}</span>`:'';
+    eqhtml+=`<tr><td>${name} ${typeTag}</td>`;
     quarters.forEach((q,qi)=>{
       let qg=0,qn=0;
       q.months.forEach(m=>{
@@ -1430,10 +1466,11 @@ function exportSalaryRecordsCSV(){
   const year=parseInt(document.getElementById('salaryRecordYear').value)||new Date().getFullYear();
   const monthly=getMonthlyData(year);
   let csv='Employee,Type,'+MONTH_NAMES.join(',')+',Annual Total\n';
-  DATA.employees.forEach(e=>{
-    const data=monthly[e.name];
+  Object.keys(monthly).forEach(name=>{
+    const emp=DATA.employees.find(e=>e.name===name);
+    const data=monthly[name];
     let annTotal=0;
-    csv+=`"${e.name}",${e.type}`;
+    csv+=`"${name}",${emp?emp.type:''}`;
     for(let m=0;m<12;m++){
       const val=data[m]?data[m].gross:0;
       annTotal+=val;csv+=`,${val.toFixed(2)}`;
@@ -2327,10 +2364,20 @@ async function mergeFromCloud() {
         }
 
         // Merge payroll runs - add cloud runs that don't exist locally (match by date)
+        // Also reconcile employee names in merged runs to match local employee list
         if (backupData.data.payrollRuns) {
             const localDates = DATA.payrollRuns.map(r => r.date);
+            const localNameMap = {};
+            DATA.employees.forEach(e => { localNameMap[e.name.trim().toLowerCase()] = e.name; });
             backupData.data.payrollRuns.forEach(cloudRun => {
                 if (!localDates.includes(cloudRun.date)) {
+                    // Reconcile employee names in cloud run to match local names
+                    cloudRun.results.forEach(r => {
+                        if (r.empName) {
+                            const match = localNameMap[r.empName.trim().toLowerCase()];
+                            if (match && match !== r.empName) r.empName = match;
+                        }
+                    });
                     DATA.payrollRuns.push(cloudRun);
                     mergeStats.payrollRunsAdded++;
                 }
