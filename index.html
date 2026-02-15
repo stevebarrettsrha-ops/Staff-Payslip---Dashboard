@@ -3935,9 +3935,11 @@ function completeLogin(user){
   if(login2FA)login2FA.value='';
   var loginBackup=document.getElementById('loginBackupCode');
   if(loginBackup)loginBackup.value='';
+  var loginBtnEl=document.getElementById('loginBtn');
+  if(loginBtnEl)loginBtnEl.disabled=false;
 
   checkAuth();
-  showNotification('Welcome, '+user.displayName+'!');
+  showNotification('Welcome, '+(user.displayName||user.username)+'!');
   promptSyncOnLogin();
 }
 
@@ -3949,9 +3951,11 @@ function checkAuth(){
   var settingsBtn=document.querySelector('.settings-btn');
 
   if(isLoggedIn){
+    // Hide login page, show dashboard — use direct style for reliability
+    loginPage.style.display='none';
     loginPage.classList.add('hidden');
+    dashboardContainer.style.display='flex';
     dashboardContainer.classList.add('visible');
-    dashboardContainer.style.display='';
     updateUserDisplay();
 
     var loggedInUser=JSON.parse(sessionStorage.getItem('loggedInUser'));
@@ -3968,21 +3972,23 @@ function checkAuth(){
 
     // Update sidebar user info
     document.getElementById('sidebarUser').style.display='';
-    if(currentUser.displayName){
+    if(currentUser&&currentUser.displayName){
       document.getElementById('sidebarAvatar').textContent=currentUser.displayName.charAt(0).toUpperCase();
       document.getElementById('sidebarUserName').textContent=currentUser.displayName;
     }
-    var roleDisplay=isAdminRole(currentUser.role)?'Administrator':currentUser.role==='viewer'?'Viewer':'User';
+    var roleDisplay=(currentUser&&isAdminRole(currentUser.role))?'Administrator':(currentUser&&currentUser.role==='viewer')?'Viewer':'User';
     document.getElementById('sidebarUserRole').textContent=roleDisplay;
     // Show/hide admin-only nav
-    document.getElementById('navUserMgmt').style.display=isAdminRole(currentUser.role)||currentUser.isAdmin?'':'none';
+    document.getElementById('navUserMgmt').style.display=(currentUser&&(isAdminRole(currentUser.role)||currentUser.isAdmin))?'':'none';
     updatePermBadge();
     startPermTimer();
     renderDashboard();
   }else{
+    // Show login page, hide dashboard
+    loginPage.style.display='';
     loginPage.classList.remove('hidden');
-    dashboardContainer.classList.remove('visible');
     dashboardContainer.style.display='none';
+    dashboardContainer.classList.remove('visible');
     currentUser=null;
   }
 }
