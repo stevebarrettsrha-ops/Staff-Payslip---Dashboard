@@ -538,12 +538,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
           <span id="loggedInUserRole" style="display:none"></span>
           <span>Contact your administrator for access</span>
         </div>
-        <!-- Debug: Verify Stored Accounts -->
-        <div style="text-align:center;margin-top:.5rem">
-          <button type="button" onclick="toggleLoginDebug()" style="background:none;border:none;color:var(--text-muted);font-size:.65rem;cursor:pointer;opacity:.5;font-family:inherit" id="loginDebugToggle">Verify stored accounts</button>
-          <div id="loginDebugPanel" style="display:none;margin-top:.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem;text-align:left;font-size:.72rem;color:var(--text-dim);max-height:200px;overflow-y:auto">
-          </div>
-        </div>
+        <!-- Debug panel removed for security -->
       </form>
 
       <!-- Forgot Password Step: Enter Email -->
@@ -4151,8 +4146,7 @@ function toggleLoginDebug(){
 // Helper: format user list for display in sync banners
 function formatSyncedUserList(users){
   if(!users||!users.length)return '0 accounts';
-  var names=users.map(function(u){return u.username;});
-  return '<strong>'+users.length+'</strong> account(s): <strong>'+names.join('</strong>, <strong>')+'</strong>';
+  return '<strong>'+users.length+'</strong> account(s) ready';
 }
 
 function showLoginSyncOverlay(text,sub){
@@ -4399,11 +4393,10 @@ async function firstTimeGoogleSync(){
     btn.classList.remove('loading');
     if(synced){
       var syncedUsers=loadUsers();
-      var syncedNames=syncedUsers.map(function(u){return u.username;}).join(', ');
       label.textContent='Synced!';
       btn.disabled=true;
       status.className='ft-status success';
-      status.textContent=syncedUsers.length+' account(s) loaded: '+syncedNames+'. You can now sign in above.';
+      status.textContent=syncedUsers.length+' account(s) loaded. You can now sign in above.';
       card.className='first-time-card synced';
       document.getElementById('ftCloudIcon').textContent='\u2705';
       document.getElementById('ftTitle').textContent='Cloud Data Loaded';
@@ -4505,7 +4498,7 @@ async function autoSyncCredentialsOnLoad(){
       if(backupData.data){DATA=backupData.data;saveStore();}
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
       updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
-      if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.map(function(u){return u.username;}).join(', ');}
+      if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) ready';}
       console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
     }else{
       updateLoginCloudBanner('','Cloud connected — no user accounts in backup.');
