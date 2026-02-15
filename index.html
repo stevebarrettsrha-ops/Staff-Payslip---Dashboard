@@ -788,7 +788,10 @@ tr:hover td{background:rgba(59,130,246,.04)}
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="newUserPassword" placeholder="Enter password">
+          <div style="position:relative">
+            <input type="text" id="newUserPassword" placeholder="Enter password" autocomplete="new-password">
+            <small style="color:var(--text-muted);margin-top:.25rem;display:block">Password is case-sensitive</small>
+          </div>
         </div>
         <div class="form-group">
           <label>Role</label>
@@ -1253,21 +1256,40 @@ function selectPayrollMonth(year,month){
     return d.getFullYear()===year&&d.getMonth()===month;
   });
   if(existingRun){
-    let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th><th>Payslip</th></tr></thead><tbody>';
+    const isAdmin=currentUser&&currentUser.role==='admin';
+    const hasEditPerm=hasPayrollEditPermission();
+    let html='<table><thead><tr><th>Employee</th><th class="text-right">Gross</th><th class="text-right">NIS</th><th class="text-right">Ed. Tax</th><th class="text-right">Income Tax</th><th class="text-right">NHT</th><th class="text-right">HEART</th><th class="text-right">Total Ded.</th><th class="text-right">Net Pay</th><th>Payslip</th>'+(hasEditPerm?'<th>Actions</th>':'')+'</tr></thead><tbody>';
     let totals={gross:0,nis:0,ed:0,it:0,nht:0,heart:0,ded:0,net:0};
     const runIdx=DATA.payrollRuns.indexOf(existingRun);
-    existingRun.results.forEach(r=>{
+    existingRun.results.forEach((r,ri)=>{
       const empIdx=DATA.employees.findIndex(e=>e.name===r.empName);
-      html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.heartEr)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td><td>${empIdx>=0?'<span class="payslip-link" onclick="viewPayslipFromPayroll('+empIdx+','+runIdx+')">View Payslip</span>':''}</td></tr>`;
+      html+=`<tr><td>${r.empName}</td><td class="mono text-right">${fmt(r.gross)}</td><td class="mono text-right">${fmt(r.nisEmp)}</td><td class="mono text-right">${fmt(r.edTaxEmp)}</td><td class="mono text-right">${fmt(r.incomeTax)}</td><td class="mono text-right">${fmt(r.nhtEmp)}</td><td class="mono text-right">${fmt(r.heartEr)}</td><td class="mono text-right">${fmt(r.totalEmpDeductions)}</td><td class="mono text-right" style="color:var(--green);font-weight:600">${fmt(r.netPay)}</td><td>${empIdx>=0?'<span class="payslip-link" onclick="viewPayslipFromPayroll('+empIdx+','+runIdx+')">View Payslip</span>':''}</td>`;
+      if(hasEditPerm){
+        html+=`<td><div class="btn-group"><button class="btn btn-ghost btn-sm" onclick="editPayrollEntry(${runIdx},${ri})">Edit</button><button class="btn btn-danger btn-sm" onclick="deletePayrollEntry(${runIdx},${ri})">Del</button></div></td>`;
+      }
+      html+=`</tr>`;
       totals.gross+=r.gross;totals.nis+=r.nisEmp;totals.ed+=r.edTaxEmp;totals.it+=r.incomeTax;totals.nht+=r.nhtEmp;totals.heart+=r.heartEr;totals.ded+=r.totalEmpDeductions;totals.net+=r.netPay;
     });
-    html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.heart)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td><td></td></tr>`;
+    html+=`<tr style="font-weight:700;border-top:2px solid var(--border)"><td>TOTAL</td><td class="mono text-right">${fmt(totals.gross)}</td><td class="mono text-right">${fmt(totals.nis)}</td><td class="mono text-right">${fmt(totals.ed)}</td><td class="mono text-right">${fmt(totals.it)}</td><td class="mono text-right">${fmt(totals.nht)}</td><td class="mono text-right">${fmt(totals.heart)}</td><td class="mono text-right">${fmt(totals.ded)}</td><td class="mono text-right" style="color:var(--green)">${fmt(totals.net)}</td><td></td>${hasEditPerm?'<td></td>':''}</tr>`;
     html+='</tbody></table>';
     document.getElementById('payrollResults').innerHTML=html;
     document.getElementById('payrollResultsPanel').style.display='block';
     document.getElementById('payrollResultsPanel').querySelector('.panel-head h3').textContent='Recorded Payroll \u2014 '+MONTH_NAMES[month]+' '+year;
-    const saveBtn=document.getElementById('payrollResultsPanel').querySelector('.btn-primary');
+    // Show admin action buttons for saved payroll
+    const panelHead=document.getElementById('payrollResultsPanel').querySelector('.panel-head');
+    const saveBtn=panelHead.querySelector('.btn-primary');
     if(saveBtn)saveBtn.style.display='none';
+    // Remove old admin action buttons if they exist
+    const oldBtns=panelHead.querySelector('.payroll-admin-btns');
+    if(oldBtns)oldBtns.remove();
+    if(hasEditPerm){
+      const adminBtns=document.createElement('div');
+      adminBtns.className='payroll-admin-btns';
+      adminBtns.style.cssText='display:flex;gap:.5rem;align-items:center';
+      adminBtns.innerHTML='<button class="btn btn-ghost btn-sm" onclick="recalculateExistingPayroll('+runIdx+')" title="Unlock payroll for editing gross values">✏️ Edit & Recalculate</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteEntirePayrollRun('+runIdx+')" title="Delete entire payroll run">🗑️ Delete Run</button>';
+      panelHead.appendChild(adminBtns);
+    }
   }else{
     document.getElementById('payrollResultsPanel').style.display='none';
   }
@@ -1431,6 +1453,106 @@ function savePayrollRun(){
   alert('Payroll saved successfully!');
   renderPayrollInput(); // Refresh to show updated quarter status
   refreshActiveSections(); // Sync salary records, dashboard, etc.
+}
+
+// ==================== PAYROLL EDIT/DELETE (ADMIN) ====================
+function editPayrollEntry(runIdx,entryIdx){
+  if(!checkPayrollPermission('edit payroll entry'))return;
+  const run=DATA.payrollRuns[runIdx];
+  if(!run||!run.results[entryIdx])return;
+  const r=run.results[entryIdx];
+  const newGross=prompt('Edit gross earnings for '+r.empName+':\n\nCurrent gross: $'+fmt(r.gross)+'\n\nEnter new gross amount:',r.gross.toFixed(2));
+  if(newGross===null)return;
+  const gross=parseFloat(newGross);
+  if(isNaN(gross)||gross<0){alert('Invalid amount');return;}
+  // Recalculate this employee's deductions with new gross
+  const s=DATA.settings;
+  const monthlyThreshold=s.annualThreshold/12;
+  const monthlyHigherBracket=(s.higherBracketAnnual||6000000)/12;
+  const nisCeiling=s.nisCeilingMonthly||416667;
+  const emp=DATA.employees.find(e=>e.name===r.empName);
+  const empType=emp?emp.type:r.empType;
+  const nisableGross=Math.min(gross,nisCeiling);
+  const nisEmp=empType==='contractual'?0:Math.round(nisableGross*s.nisEmp/100*100)/100;
+  const nisEr=empType==='contractual'?0:Math.round(nisableGross*s.nisEr/100*100)/100;
+  const edTaxEmp=empType==='contractual'?0:Math.round(gross*s.edTaxEmp/100*100)/100;
+  const edTaxEr=empType==='contractual'?0:Math.round(gross*s.edTaxEr/100*100)/100;
+  const nhtEmp=empType==='contractual'?0:Math.round(gross*s.nhtEmp/100*100)/100;
+  const nhtEr=empType==='contractual'?0:Math.round(gross*s.nhtEr/100*100)/100;
+  const heartEr=empType==='contractual'?0:Math.round(gross*s.heartEr/100*100)/100;
+  const taxableIncome=empType==='contractual'?gross:gross-nisEmp-nhtEmp;
+  let incomeTax=0;
+  if(taxableIncome>monthlyThreshold){
+    const taxableBand=taxableIncome-monthlyThreshold;
+    if(taxableIncome<=monthlyHigherBracket){
+      incomeTax=Math.round(taxableBand*s.incomeTax/100*100)/100;
+    }else{
+      const lowerBand=monthlyHigherBracket-monthlyThreshold;
+      const upperBand=taxableIncome-monthlyHigherBracket;
+      incomeTax=Math.round((lowerBand*s.incomeTax/100+upperBand*(s.incomeTaxHigher||30)/100)*100)/100;
+    }
+  }
+  const totalEmpDeductions=nisEmp+edTaxEmp+nhtEmp+incomeTax;
+  const totalErContributions=nisEr+edTaxEr+nhtEr+heartEr;
+  const netPay=Math.round((gross-totalEmpDeductions)*100)/100;
+  // Update the entry
+  Object.assign(run.results[entryIdx],{gross,nisEmp,nisEr,edTaxEmp,edTaxEr,nhtEmp,nhtEr,heartEr,incomeTax,totalEmpDeductions,totalErContributions,netPay});
+  saveStore();
+  // Re-render the same month
+  const d=parseLocalDate(run.date);
+  selectPayrollMonth(d.getFullYear(),d.getMonth());
+  refreshActiveSections();
+}
+
+function deletePayrollEntry(runIdx,entryIdx){
+  if(!checkPayrollPermission('delete payroll entry'))return;
+  const run=DATA.payrollRuns[runIdx];
+  if(!run||!run.results[entryIdx])return;
+  const r=run.results[entryIdx];
+  if(!confirm('Delete payroll entry for '+r.empName+'?\n\nGross: $'+fmt(r.gross)+' | Net: $'+fmt(r.netPay)+'\n\nThis action cannot be undone.'))return;
+  run.results.splice(entryIdx,1);
+  // If no results left, remove entire run
+  if(run.results.length===0){
+    DATA.payrollRuns.splice(runIdx,1);
+  }
+  saveStore();
+  renderPayrollInput();
+  refreshActiveSections();
+}
+
+function deleteEntirePayrollRun(runIdx){
+  if(!checkPayrollPermission('delete payroll run'))return;
+  const run=DATA.payrollRuns[runIdx];
+  if(!run)return;
+  const d=parseLocalDate(run.date);
+  if(!confirm('DELETE ENTIRE PAYROLL RUN\n\n'+MONTH_NAMES[d.getMonth()]+' '+d.getFullYear()+'\n\n'+run.results.length+' employee records will be permanently deleted.\n\nThis action cannot be undone. Continue?'))return;
+  DATA.payrollRuns.splice(runIdx,1);
+  saveStore();
+  renderPayrollInput();
+  refreshActiveSections();
+  alert('Payroll run deleted successfully.');
+}
+
+function recalculateExistingPayroll(runIdx){
+  if(!checkPayrollPermission('edit payroll'))return;
+  const run=DATA.payrollRuns[runIdx];
+  if(!run)return;
+  const d=parseLocalDate(run.date);
+  // Set the payroll date
+  document.getElementById('payCycleDate').value=run.date;
+  document.getElementById('payrollFormTitle').textContent='Edit Payroll \u2014 '+MONTH_NAMES[d.getMonth()]+' '+d.getFullYear();
+  // Populate gross inputs from existing run
+  DATA.employees.forEach((e,i)=>{
+    const inp=document.getElementById('grossInput_'+i);
+    if(inp){
+      const existing=run.results.find(r=>r.empName===e.name);
+      inp.value=existing?existing.gross:0;
+    }
+  });
+  // Scroll to input section
+  document.getElementById('payrollResultsPanel').style.display='none';
+  const inputSection=document.getElementById('payrollInput');
+  if(inputSection)inputSection.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 // ==================== PAYSLIPS ====================
@@ -3225,11 +3347,16 @@ function doLogin(){
   // Ensure users are persisted before checking
   if(!localStorage.getItem(USERS_KEY))saveUsers(loadUsers());
   const users=loadUsers();
+  console.log('[Login] Attempting login for:',username,'| Available users:',users.map(function(u){return u.username;}));
   const user=users.find(u=>u.username.toLowerCase()===username&&u.password===password);
   if(!user){
     // Check if username exists but password wrong
     const nameExists=users.some(u=>u.username.toLowerCase()===username);
-    errEl.textContent=nameExists?'Incorrect password. Please try again.':'User not found. Contact your administrator.';
+    if(nameExists){
+      errEl.textContent='Incorrect password. Please try again.';
+    }else{
+      errEl.innerHTML='User not found. <span style="display:block;margin-top:.35rem;font-size:.78rem;font-weight:400">Try clicking "Sync Credentials from Cloud" below, or contact your administrator.</span>';
+    }
     errEl.style.display='block';return;
   }
   errEl.style.display='none';
@@ -3380,6 +3507,48 @@ async function loginCloudSync(){
   btn.disabled=false;
 }
 
+// Auto-sync credentials from cloud on page load (silent, non-blocking)
+async function autoSyncCredentialsOnLoad(){
+  var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
+  var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
+  var fileId=localStorage.getItem('schoolDashboardCloudFileId');
+  if(!token||!expiry||new Date(expiry)<=new Date())return; // No valid token
+  var statusEl=document.getElementById('loginCloudStatus');
+  if(statusEl){statusEl.style.display='block';statusEl.style.color='var(--text-muted)';statusEl.textContent='Auto-syncing credentials from cloud...';}
+  try{
+    // Find file if needed
+    if(!fileId){
+      var query="name='"+GOOGLE_DRIVE_CONFIG.BACKUP_FILE_NAME+"' and '"+GOOGLE_DRIVE_CONFIG.FOLDER_ID+"' in parents and trashed=false";
+      var searchResp=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(query)+'&fields=files(id,name)',{headers:{'Authorization':'Bearer '+token}});
+      if(searchResp.ok){var searchData=await searchResp.json();if(searchData.files&&searchData.files.length>0){fileId=searchData.files[0].id;localStorage.setItem('schoolDashboardCloudFileId',fileId);}}
+    }
+    if(!fileId){if(statusEl){statusEl.textContent='';statusEl.style.display='none';}return;}
+    var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
+    if(!resp.ok){if(statusEl){statusEl.textContent='';statusEl.style.display='none';}return;}
+    var backupData=await resp.json();
+    if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
+      var localUsers=loadUsers();
+      var added=0;
+      backupData.users.forEach(function(cu){
+        var existing=localUsers.find(function(u){return u.username.toLowerCase()===cu.username.toLowerCase();});
+        if(!existing){localUsers.push(cu);added++;}
+        else{existing.displayName=cu.displayName;existing.role=cu.role;if(cu.password)existing.password=cu.password;}
+      });
+      if(!localUsers.some(function(u){return u.username==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
+      saveUsers(localUsers);
+      if(backupData.data){DATA=backupData.data;saveStore();}
+      if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
+      if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) available'+(added>0?' ('+added+' new)':'');}
+      console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
+    }else{
+      if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+    }
+  }catch(err){
+    console.log('[AutoSync] Silent sync failed:',err.message);
+    if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+  }
+}
+
 function checkSession(){
   try{
     const s=localStorage.getItem(SESSION_KEY);
@@ -3460,7 +3629,9 @@ function saveUser(){
   saveUsers(users);
   closeAddUserModal();
   renderUserManagement();
-  alert('User "'+displayName+'" saved successfully.\nUsername: '+username+'\nRole: '+role);
+  var msg='User "'+displayName+'" saved successfully.\n\nUsername: '+username+'\nRole: '+role;
+  if(!editingUserId||password){msg+='\nPassword: '+password+'\n\nIMPORTANT: Save to Cloud so this user can log in on other devices.';}
+  alert(msg);
 }
 
 function deleteUser(uid){
@@ -3728,8 +3899,10 @@ document.addEventListener('DOMContentLoaded',function(){
     // Check for existing session
     if(checkSession()){
       showApp();
+    }else{
+      // On login screen: auto-sync credentials from cloud if token is available
+      autoSyncCredentialsOnLoad();
     }
-    // else login screen is already visible
 
     initializeCloudSync();
     setTimeout(function(){ initGoogleAuth(); }, 500);
