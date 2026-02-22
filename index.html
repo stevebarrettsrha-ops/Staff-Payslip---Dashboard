@@ -4114,14 +4114,38 @@ async function performAutoSyncOnLogin(){
       users=localUsers;
       saveUsers(localUsers);
     }
+    // Merge payroll data — additive only, never replace local records
     if(backup.data){
-      DATA=backup.data;
-      if(!Array.isArray(DATA.employees))DATA.employees=[];
-      if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
-      DATA.payrollRuns.forEach(function(run){if(!Array.isArray(run.results))run.results=[];});
+      // Employees: add cloud employees not already in local (case-insensitive name match)
+      if(Array.isArray(backup.data.employees)){
+        var localNameSet=DATA.employees.map(function(e){return e.name.trim().toLowerCase();});
+        backup.data.employees.forEach(function(ce){
+          if(ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
+            DATA.employees.push(ce);
+            localNameSet.push(ce.name.trim().toLowerCase());
+          }
+        });
+      }
+      // Payroll runs: add cloud runs whose date doesn't exist locally
+      if(Array.isArray(backup.data.payrollRuns)){
+        var localDates=DATA.payrollRuns.map(function(r){return r.date;});
+        backup.data.payrollRuns.forEach(function(cr){
+          if(!localDates.includes(cr.date)){
+            if(!Array.isArray(cr.results))cr.results=[];
+            DATA.payrollRuns.push(cr);
+            localDates.push(cr.date);
+          }
+        });
+      }
       saveStore();
     }
-    if(backup.permissions&&Array.isArray(backup.permissions))savePermissions(backup.permissions);
+    if(backup.permissions&&Array.isArray(backup.permissions)){
+      var localPerms=loadPermissions();
+      backup.permissions.forEach(function(cp){
+        if(!localPerms.some(function(p){return p.id===cp.id;}))localPerms.push(cp);
+      });
+      savePermissions(localPerms);
+    }
     lastSyncTime=new Date();
     localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
     return true;
@@ -4511,14 +4535,38 @@ async function autoSyncCredentialsOnLoad(){
       });
       if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
+      // Merge payroll data — additive only, never replace local records
       if(backupData.data){
-        DATA=backupData.data;
-        if(!Array.isArray(DATA.employees))DATA.employees=[];
-        if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
-        DATA.payrollRuns.forEach(function(run){if(!Array.isArray(run.results))run.results=[];});
+        // Employees: add cloud employees not already in local (case-insensitive name match)
+        if(Array.isArray(backupData.data.employees)){
+          var localNameSet=DATA.employees.map(function(e){return e.name.trim().toLowerCase();});
+          backupData.data.employees.forEach(function(ce){
+            if(ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
+              DATA.employees.push(ce);
+              localNameSet.push(ce.name.trim().toLowerCase());
+            }
+          });
+        }
+        // Payroll runs: add cloud runs whose date doesn't exist locally
+        if(Array.isArray(backupData.data.payrollRuns)){
+          var localDates=DATA.payrollRuns.map(function(r){return r.date;});
+          backupData.data.payrollRuns.forEach(function(cr){
+            if(!localDates.includes(cr.date)){
+              if(!Array.isArray(cr.results))cr.results=[];
+              DATA.payrollRuns.push(cr);
+              localDates.push(cr.date);
+            }
+          });
+        }
         saveStore();
       }
-      if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
+      if(backupData.permissions&&Array.isArray(backupData.permissions)){
+        var localPerms=loadPermissions();
+        backupData.permissions.forEach(function(cp){
+          if(!localPerms.some(function(p){return p.id===cp.id;}))localPerms.push(cp);
+        });
+        savePermissions(localPerms);
+      }
       updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
       if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) ready';}
       console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
