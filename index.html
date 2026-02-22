@@ -4071,6 +4071,10 @@ async function closeSyncOnLoginModal(shouldSync){
   if(success){
     document.getElementById('syncOnLoginModal')?.remove();
     sessionStorage.setItem('cloudSyncCompleted','true');
+    renderDashboard();
+    updateLastSyncDisplay();
+    if(typeof renderUserManagement==='function'&&currentPageName==='usermanagement')renderUserManagement();
+    if(typeof renderPermissions==='function'&&currentPageName==='permissions')renderPermissions();
     showNotification('Cloud data merged successfully!');
   }else{
     if(mergeBtn){mergeBtn.disabled=false;mergeBtn.textContent='🔀 Retry Merge';}
@@ -4110,7 +4114,13 @@ async function performAutoSyncOnLogin(){
       users=localUsers;
       saveUsers(localUsers);
     }
-    if(backup.data){DATA=backup.data;saveStore();}
+    if(backup.data){
+      DATA=backup.data;
+      if(!Array.isArray(DATA.employees))DATA.employees=[];
+      if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
+      DATA.payrollRuns.forEach(function(run){if(!Array.isArray(run.results))run.results=[];});
+      saveStore();
+    }
     if(backup.permissions&&Array.isArray(backup.permissions))savePermissions(backup.permissions);
     lastSyncTime=new Date();
     localStorage.setItem('schoolDashboardLastSyncTime',lastSyncTime.toISOString());
@@ -4501,7 +4511,13 @@ async function autoSyncCredentialsOnLoad(){
       });
       if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
-      if(backupData.data){DATA=backupData.data;saveStore();}
+      if(backupData.data){
+        DATA=backupData.data;
+        if(!Array.isArray(DATA.employees))DATA.employees=[];
+        if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
+        DATA.payrollRuns.forEach(function(run){if(!Array.isArray(run.results))run.results=[];});
+        saveStore();
+      }
       if(backupData.permissions&&Array.isArray(backupData.permissions))savePermissions(backupData.permissions);
       updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
       if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) ready';}
