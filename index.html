@@ -1241,6 +1241,7 @@ function refreshAllData(){
   let cleaned=0;
   // Remove payroll results for employees that no longer exist
   DATA.payrollRuns.forEach(run=>{
+    if(!Array.isArray(run.results))run.results=[];
     const before=run.results.length;
     run.results=run.results.filter(r=>{
       if(!r.empName)return false;
@@ -1254,7 +1255,7 @@ function refreshAllData(){
   });
   // Remove empty payroll runs
   const runsBefore=DATA.payrollRuns.length;
-  DATA.payrollRuns=DATA.payrollRuns.filter(run=>run.results.length>0);
+  DATA.payrollRuns=DATA.payrollRuns.filter(run=>(run.results||[]).length>0);
   const runsRemoved=runsBefore-DATA.payrollRuns.length;
   // Sync employee fields in remaining payroll results
   DATA.payrollRuns.forEach(run=>{
@@ -1278,8 +1279,8 @@ function renderDashboard(){
   const ftCount=emps.filter(e=>e.type==='FT').length;
   const ptCount=emps.filter(e=>e.type==='PT').length;
   const lastRun=runs.length>0?runs[runs.length-1]:null;
-  const totalGross=lastRun?lastRun.results.reduce((s,r)=>s+r.gross,0):0;
-  const totalNet=lastRun?lastRun.results.reduce((s,r)=>s+r.netPay,0):0;
+  const totalGross=lastRun?(lastRun.results||[]).reduce((s,r)=>s+r.gross,0):0;
+  const totalNet=lastRun?(lastRun.results||[]).reduce((s,r)=>s+r.netPay,0):0;
 
   document.getElementById('dashStats').innerHTML=`
     <div class="stat-card blue"><div class="label">Total Employees</div><div class="value">${emps.length}</div><div class="sub">${ftCount} Full-Time · ${ptCount} Part-Time</div></div>
@@ -1291,11 +1292,12 @@ function renderDashboard(){
   let histHtml='<table><thead><tr><th>Pay Date</th><th class="text-right">Gross</th><th class="text-right">Net</th><th class="text-right">Emp Deductions</th><th class="text-right">Er Contributions</th><th>Employees</th></tr></thead><tbody>';
   if(runs.length===0)histHtml+='<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">No payroll runs yet</td></tr>';
   else runs.slice().reverse().forEach(r=>{
-    const g=r.results.reduce((s,x)=>s+x.gross,0);
-    const n=r.results.reduce((s,x)=>s+x.netPay,0);
-    const ed=r.results.reduce((s,x)=>s+x.totalEmpDeductions,0);
-    const er=r.results.reduce((s,x)=>s+x.totalErContributions,0);
-    histHtml+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(g)}</td><td class="mono text-right">${fmt(n)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(er)}</td><td>${r.results.length}</td></tr>`;
+    const res=r.results||[];
+    const g=res.reduce((s,x)=>s+x.gross,0);
+    const n=res.reduce((s,x)=>s+x.netPay,0);
+    const ed=res.reduce((s,x)=>s+x.totalEmpDeductions,0);
+    const er=res.reduce((s,x)=>s+x.totalErContributions,0);
+    histHtml+=`<tr><td>${fmtDate(r.date)}</td><td class="mono text-right">${fmt(g)}</td><td class="mono text-right">${fmt(n)}</td><td class="mono text-right">${fmt(ed)}</td><td class="mono text-right">${fmt(er)}</td><td>${res.length}</td></tr>`;
   });
   histHtml+='</tbody></table>';
   document.getElementById('dashHistory').innerHTML=histHtml;
@@ -1395,10 +1397,10 @@ function deleteEmployee(i){
   DATA.employees.splice(i,1);
   // Remove deleted employee from all payroll runs
   DATA.payrollRuns.forEach(run=>{
-    run.results=run.results.filter(r=>r.empName!==deletedName);
+    run.results=(run.results||[]).filter(r=>r.empName!==deletedName);
   });
   // Remove empty payroll runs (no results left)
-  DATA.payrollRuns=DATA.payrollRuns.filter(run=>run.results.length>0);
+  DATA.payrollRuns=DATA.payrollRuns.filter(run=>(run.results||[]).length>0);
   saveStore();renderEmployees();refreshActiveSections();
 }
 
@@ -3129,6 +3131,10 @@ async function syncFromCloud() {
 
         // Restore data
         DATA = backupData.data;
+        // Ensure required arrays exist and payroll runs have results arrays
+        if (!Array.isArray(DATA.employees)) DATA.employees = [];
+        if (!Array.isArray(DATA.payrollRuns)) DATA.payrollRuns = [];
+        DATA.payrollRuns.forEach(function(run){ if (!Array.isArray(run.results)) run.results = []; });
         saveStore();
 
         // Restore users and permissions from cloud if available
@@ -3242,7 +3248,7 @@ async function mergeFromCloud() {
             backupData.data.payrollRuns.forEach(cloudRun => {
                 if (!localDates.includes(cloudRun.date)) {
                     // Reconcile employee names and filter to only current employees
-                    cloudRun.results = cloudRun.results.filter(r => {
+                    cloudRun.results = (cloudRun.results || []).filter(r => {
                         if (!r.empName) return false;
                         const match = localNameMap[r.empName.trim().toLowerCase()];
                         if (match) { r.empName = match; return true; }
