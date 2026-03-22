@@ -1167,7 +1167,12 @@ tr:hover td{background:rgba(59,130,246,.04)}
 <script>
 // ==================== DATA STORE ====================
 const STORAGE_KEY = 'cestisPayroll';
+const BACKUP_STORAGE_KEY = 'cestisPayroll_backup';
 let DATA = loadStore();
+let _dataDirty = false;
+let _autoSaveInterval = null;
+let _autoCloudSaveInterval = null;
+let _lastSaveHash = '';
 
 function defaultData(){
   return {
@@ -1186,7 +1191,139 @@ function defaultData(){
 function loadStore(){
   try{const d=localStorage.getItem(STORAGE_KEY);return d?JSON.parse(d):defaultData();}catch(e){return defaultData();}
 }
-function saveStore(){localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));}
+
+// Create a simple hash of data to detect changes
+function _dataHash(data){
+  var s=JSON.stringify(data);
+  var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return h.toString();
+}
+
+// Back up current localStorage before overwriting
+function _backupBeforeSave(){
+  try{
+    var current=localStorage.getItem(STORAGE_KEY);
+    if(current)localStorage.setItem(BACKUP_STORAGE_KEY,current);
+  }catch(e){console.warn('[Backup] Failed to create backup:',e.message);}
+}
+
+// Merge data from another tab's localStorage changes into in-memory DATA
+function _mergeFromLocalStorage(){
+  try{
+    var stored=localStorage.getItem(STORAGE_KEY);
+    if(!stored)return;
+    var storedData=JSON.parse(stored);
+    var storedHash=_dataHash(storedData);
+    var memHash=_dataHash(DATA);
+    // If localStorage matches memory, no merge needed
+    if(storedHash===memHash)return;
+    // Merge employees: add any from localStorage not in memory (by name, case-insensitive)
+    if(storedData.employees&&Array.isArray(storedData.employees)){
+      var memNames=DATA.employees.map(function(e){return e.name.toLowerCase();});
+      storedData.employees.forEach(function(emp){
+        if(!memNames.includes(emp.name.toLowerCase())){
+          DATA.employees.push(emp);
+          memNames.push(emp.name.toLowerCase());
+        }
+      });
+    }
+    // Merge payroll runs: add any from localStorage not in memory (by date)
+    if(storedData.payrollRuns&&Array.isArray(storedData.payrollRuns)){
+      var memDates=DATA.payrollRuns.map(function(r){return r.date;});
+      storedData.payrollRuns.forEach(function(run){
+        if(!memDates.includes(run.date)){
+          DATA.payrollRuns.push(run);
+          memDates.push(run.date);
+        }
+      });
+    }
+  }catch(e){console.warn('[Merge] Failed to merge from localStorage:',e.message);}
+}
+
+function markDataDirty(){_dataDirty=true;}
+
+function saveStore(){
+  _backupBeforeSave();
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));
+  _lastSaveHash=_dataHash(DATA);
+  _dataDirty=false;
+}
+
+// Autosave: merge from localStorage (cross-tab), then save if dirty or data changed
+function _autoSaveTick(){
+  try{
+    _mergeFromLocalStorage();
+    var currentHash=_dataHash(DATA);
+    if(_dataDirty||currentHash!==_lastSaveHash){
+      console.log('[AutoSave] Saving data (dirty='+_dataDirty+', hashChanged='+(currentHash!==_lastSaveHash)+')');
+      saveStore();
+      _showAutoSaveIndicator();
+    }
+  }catch(e){console.warn('[AutoSave] Error:',e.message);}
+}
+
+// Auto cloud save: push to cloud if connected and data changed since last cloud sync
+function _autoCloudSaveTick(){
+  if(typeof isCloudConnected!=='undefined'&&isCloudConnected&&typeof googleAccessToken!=='undefined'&&googleAccessToken){
+    if(typeof autoSaveUsersToCloud==='function'){
+      console.log('[AutoCloudSave] Pushing data to cloud');
+      autoSaveUsersToCloud();
+    }
+  }
+}
+
+// Visual indicator for autosave
+function _showAutoSaveIndicator(){
+  var el=document.getElementById('autosave-indicator');
+  if(!el){
+    el=document.createElement('div');
+    el.id='autosave-indicator';
+    el.style.cssText='position:fixed;bottom:12px;right:12px;background:rgba(16,185,129,0.9);color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;z-index:99999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  el.textContent='Auto-saved '+new Date().toLocaleTimeString();
+  el.style.opacity='1';
+  setTimeout(function(){el.style.opacity='0';},2000);
+}
+
+// Start the 15-second autosave interval
+function startAutoSave(){
+  if(_autoSaveInterval)clearInterval(_autoSaveInterval);
+  if(_autoCloudSaveInterval)clearInterval(_autoCloudSaveInterval);
+  _lastSaveHash=_dataHash(DATA);
+  // Local autosave every 15 seconds
+  _autoSaveInterval=setInterval(_autoSaveTick,15000);
+  // Cloud autosave every 60 seconds
+  _autoCloudSaveInterval=setInterval(_autoCloudSaveTick,60000);
+  console.log('[AutoSave] Started: local every 15s, cloud every 60s');
+}
+
+// Restore from backup if data is corrupted
+function restoreFromBackup(){
+  try{
+    var backup=localStorage.getItem(BACKUP_STORAGE_KEY);
+    if(backup){
+      var parsed=JSON.parse(backup);
+      if(parsed.employees&&parsed.payrollRuns){
+        DATA=parsed;
+        saveStore();
+        return true;
+      }
+    }
+  }catch(e){console.warn('[Restore] Failed:',e.message);}
+  return false;
+}
+
+// Save before page unload to prevent data loss
+window.addEventListener('beforeunload',function(){
+  try{
+    var currentHash=_dataHash(DATA);
+    if(_dataDirty||currentHash!==_lastSaveHash){
+      _backupBeforeSave();
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));
+    }
+  }catch(e){}
+});
 
 // ==================== FORMATTING ====================
 function fmt(n){return '$'+parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -1387,7 +1524,7 @@ function saveEmployee(){
     });
   }
   else DATA.employees.push(emp);
-  saveStore();closeEmployeeModal();renderEmployees();refreshActiveSections();
+  markDataDirty();saveStore();closeEmployeeModal();renderEmployees();refreshActiveSections();
 }
 
 function deleteEmployee(i){
@@ -1401,7 +1538,7 @@ function deleteEmployee(i){
   });
   // Remove empty payroll runs (no results left)
   DATA.payrollRuns=DATA.payrollRuns.filter(run=>(run.results||[]).length>0);
-  saveStore();renderEmployees();refreshActiveSections();
+  markDataDirty();saveStore();renderEmployees();refreshActiveSections();
 }
 
 // ==================== PAYROLL PROCESSING ====================
@@ -1761,7 +1898,7 @@ function savePayrollRun(){
   }
 
   DATA.payrollRuns.push(window._pendingPayroll);
-  saveStore();
+  markDataDirty();saveStore();
   window._pendingPayroll=null;
   alert('Payroll saved successfully!');
   renderPayrollInput(); // Refresh to show updated quarter status
@@ -1810,7 +1947,7 @@ function editPayrollEntry(runIdx,entryIdx){
   const netPay=Math.round((gross-totalEmpDeductions)*100)/100;
   // Update the entry
   Object.assign(run.results[entryIdx],{gross,nisEmp,nisEr,edTaxEmp,edTaxEr,nhtEmp,nhtEr,heartEr,incomeTax,totalEmpDeductions,totalErContributions,netPay});
-  saveStore();
+  markDataDirty();saveStore();
   // Re-render the same month
   const d=parseLocalDate(run.date);
   selectPayrollMonth(d.getFullYear(),d.getMonth());
@@ -1828,7 +1965,7 @@ function deletePayrollEntry(runIdx,entryIdx){
   if(run.results.length===0){
     DATA.payrollRuns.splice(runIdx,1);
   }
-  saveStore();
+  markDataDirty();saveStore();
   renderPayrollInput();
   refreshActiveSections();
 }
@@ -1840,7 +1977,7 @@ function deleteEntirePayrollRun(runIdx){
   const d=parseLocalDate(run.date);
   if(!confirm('DELETE ENTIRE PAYROLL RUN\n\n'+MONTH_NAMES[d.getMonth()]+' '+d.getFullYear()+'\n\n'+run.results.length+' employee records will be permanently deleted.\n\nThis action cannot be undone. Continue?'))return;
   DATA.payrollRuns.splice(runIdx,1);
-  saveStore();
+  markDataDirty();saveStore();
   renderPayrollInput();
   refreshActiveSections();
   alert('Payroll run deleted successfully.');
@@ -2327,7 +2464,7 @@ function saveSettings(){
     higherBracketAnnual:parseFloat(document.getElementById('higherBracketAnnual').value)||6000000,
     annualThreshold:parseFloat(document.getElementById('annualThreshold').value)||1799376
   };
-  saveStore();
+  markDataDirty();saveStore();
   alert('Settings saved!');
 }
 
@@ -2452,7 +2589,7 @@ function loadPresetData(){
     {name:'Yves Bergeron',designation:'Personal Development Instructor (PT)',type:'PT',mobile:'876-319-8904',dob:'1963-11-17',trn:'112-579-477',nis:'N-63-15-58',startDate:'2020-08-01',salary:0},
     {name:'Glowmayne Rowe',designation:'Mathematics Instructor (PT)',type:'PT',mobile:'',dob:'',trn:'126-305-307',nis:'M-96-08-58',startDate:'',salary:0}
   ];
-  saveStore();
+  markDataDirty();saveStore();
   alert('Preset employee data loaded!');
   showPage('employees');
 }
@@ -2482,7 +2619,7 @@ function importData(evt){
       }else{
         DATA=parsed;
       }
-      saveStore();alert('Data imported!');location.reload();
+      markDataDirty();saveStore();alert('Data imported!');location.reload();
     }catch(err){alert('Invalid file format');}
   };
   reader.readAsText(file);
@@ -5385,6 +5522,9 @@ document.addEventListener('DOMContentLoaded',function(){
       checkCloudAndNotify('page_load');
       startCloudMonitor();
     }, 2000);
+
+    // Start autosave: local every 15s, cloud every 60s
+    startAutoSave();
 });
 </script>
 </body>
