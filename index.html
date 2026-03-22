@@ -34,7 +34,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .app{display:flex;flex-direction:column;min-height:100vh}
 
 /* Top Navigation Bar */
-.sidebar{width:100%;background:var(--surface);border-bottom:1px solid var(--border);padding:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;right:0;z-index:100}
+.sidebar{width:100%;background:var(--surface);border-bottom:1px solid var(--border);padding:0;display:flex;flex-direction:column;position:sticky;top:0;z-index:100}
 .sidebar-top-row{display:flex;align-items:center;padding:.6rem 1.5rem;border-bottom:1px solid var(--border);gap:1rem}
 .sidebar-brand{padding:0;border-bottom:none;margin-bottom:0;display:flex;align-items:center;gap:.75rem;flex-shrink:0}
 .sidebar-brand h1{font-size:.85rem;font-weight:700;color:var(--accent);letter-spacing:2px;text-transform:uppercase}
@@ -48,7 +48,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .sidebar-footer{padding:.4rem .75rem;border-top:none;border-left:1px solid var(--border);font-size:.7rem;color:var(--text-muted);display:flex;align-items:center;gap:.5rem;flex-shrink:0}
 
 /* Main Content */
-.main{margin-left:0;flex:1;padding:1.5rem 2rem;margin-top:110px}
+.main{margin-left:0;flex:1;padding:1.5rem 2rem;padding-top:0}
 .page{display:none}
 .page.active{display:block}
 
@@ -345,7 +345,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
   .sidebar .nav-text{display:none}
   .sidebar-brand p{display:none}
   .sidebar-brand h1{font-size:.6rem}
-  .main{margin-left:0;padding:1rem;margin-top:100px}
+  .main{margin-left:0;padding:1rem;padding-top:0}
   .nav-item{padding:.5rem .6rem}
   .stats-row{grid-template-columns:1fr 1fr}
   .sidebar-footer .cloud-section-label,.sidebar-footer .cloud-status-row,.sidebar-footer .cloud-sync-meta{display:none}
