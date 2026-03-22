@@ -5323,9 +5323,35 @@ function getActivePermission(){
   return perms.find(p=>p.userId===currentUser.id&&p.status==='approved'&&p.expiresAt&&new Date(p.expiresAt)>now)||null;
 }
 
+// Admin payroll edit password and session
+const ADMIN_PAYROLL_PASSWORD = '123654';
+let _adminPayrollUnlockedUntil = null;
+
+function isAdminPayrollUnlocked(){
+  if(!_adminPayrollUnlockedUntil)return false;
+  if(new Date()>_adminPayrollUnlockedUntil){_adminPayrollUnlockedUntil=null;return false;}
+  return true;
+}
+
+function promptAdminPayrollPassword(action){
+  if(isAdminPayrollUnlocked())return true;
+  var pw=prompt('Admin password required to '+action+':\n\nEnter the payroll edit password:');
+  if(pw===null)return false;
+  if(pw===ADMIN_PAYROLL_PASSWORD){
+    // Unlock for 20 minutes
+    _adminPayrollUnlockedUntil=new Date(Date.now()+20*60*1000);
+    return true;
+  }
+  alert('Incorrect password. Access denied.');
+  return false;
+}
+
 function checkPayrollPermission(action){
-  if(hasPayrollEditPermission())return true;
   if(!currentUser)return false;
+  if(isAdminRole(currentUser.role)){
+    return promptAdminPayrollPassword(action);
+  }
+  if(hasPayrollEditPermission())return true;
   if(currentUser.role==='viewer'){
     alert('View-only access: You do not have permission to '+action+'.\nContact your administrator.');
     return false;
