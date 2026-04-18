@@ -938,7 +938,7 @@ tr:hover td{background:rgba(59,130,246,.04)}
           </div>
           <div style="margin-top:1.25rem;display:flex;gap:.75rem">
             <button class="btn btn-success" onclick="saveSettings()">💾 Save Settings</button>
-            <button class="btn btn-danger" onclick="if(confirm('Reset ALL data?')){localStorage.clear();location.reload()}">🗑 Reset All Data</button>
+            <button class="btn btn-danger" onclick="resetAllData()">🗑 Reset All Data</button>
           </div>
         </div>
       </div>
@@ -1505,13 +1505,15 @@ function restoreFromBackup(){
   return false;
 }
 
-// Save before page unload to prevent data loss
+// Save before page unload to prevent data loss. Routes through saveStore()
+// so the same safety guards (high-water mark, empty-refusal, backup copy)
+// apply — a last-second tab close can never flush an empty DATA over the
+// real localStorage contents.
 window.addEventListener('beforeunload',function(){
   try{
     var currentHash=_dataHash(DATA);
     if(_dataDirty||currentHash!==_lastSaveHash){
-      _backupBeforeSave();
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));
+      saveStore();
     }
   }catch(e){}
 });
@@ -2787,6 +2789,46 @@ function loadPresetData(){
   showPage('employees');
 }
 
+// Safe reset: exports a JSON backup first, then requires the user to type
+// RESET to confirm, and finally clears localStorage. Without the confirmation
+// nothing is destroyed. This guards against an accidental click wiping all
+// employee and payroll data.
+function resetAllData(){
+  if(currentUser&&currentUser.role!=='admin'){
+    alert('Only administrators can reset data.');
+    return;
+  }
+  var empCount=Array.isArray(DATA.employees)?DATA.employees.length:0;
+  var runCount=Array.isArray(DATA.payrollRuns)?DATA.payrollRuns.length:0;
+  if(empCount===0&&runCount===0){
+    if(!confirm('There is no employee or payroll data to reset. Clear local settings anyway?'))return;
+  }
+  // Auto-download a backup before doing anything destructive.
+  try{
+    var exportObj={data:DATA,users:loadUsers(),permissions:loadPermissions(),version:'1.1',timestamp:new Date().toISOString(),savedBy:(currentUser&&currentUser.displayName)||'Reset Backup',reason:'pre-reset backup'};
+    var blob=new Blob([JSON.stringify(exportObj,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='CESTIS_Payroll_PRE_RESET_'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+    a.click();URL.revokeObjectURL(a.href);
+  }catch(e){
+    if(!confirm('Could not auto-export a backup ('+e.message+'). Continue with reset anyway? (Not recommended.)'))return;
+  }
+  var confirmation=prompt('This will permanently delete '+empCount+' employee(s) and '+runCount+' payroll run(s) from THIS browser.\n\nA JSON backup has been downloaded to your device.\n\nType RESET (in capitals) to confirm:');
+  if(confirmation!=='RESET'){
+    alert('Reset cancelled. No data was changed.');
+    return;
+  }
+  try{
+    // Clear the payroll data + high-water mark so the safety guard won't
+    // immediately refuse the next (empty) save.
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(BACKUP_STORAGE_KEY);
+    localStorage.removeItem(HIGH_WATER_KEY);
+  }catch(e){}
+  location.reload();
+}
+
 // ==================== IMPORT/EXPORT ====================
 function exportAllData(){
   const exportObj={data:DATA,users:loadUsers(),permissions:loadPermissions(),version:'1.1',timestamp:new Date().toISOString(),savedBy:currentUser?currentUser.displayName:'Export'};
@@ -3654,19 +3696,21 @@ async function mergeFromCloud() {
             });
         }
 
-        // Merge settings - only update if local settings match defaults
-        if (backupData.data.settings) {
-            const defaults = defaultData().settings;
-            const isDefault = DATA.settings.nisEmp === defaults.nisEmp &&
-                              DATA.settings.annualThreshold === defaults.annualThreshold &&
-                              DATA.employees.length === 0;
-            if (isDefault) {
-                DATA.settings = backupData.data.settings;
-                mergeStats.settingsMerged = true;
-            }
+        // Merge settings — shallow merge so local keys are never lost.
+        // Previously this replaced DATA.settings wholesale when local matched
+        // defaults; now we unconditionally layer cloud settings over local,
+        // preserving any local-only keys regardless of whether locals look
+        // "default."
+        if (backupData.data.settings && typeof backupData.data.settings === 'object') {
+            DATA.settings = Object.assign({}, DATA.settings || {}, backupData.data.settings);
+            mergeStats.settingsMerged = true;
         }
 
         saveStore();
+        // Manual merge from cloud succeeded — release the cloud autosave gate
+        // so subsequent changes can be pushed back up.
+        _cloudMergeCompleted = true;
+        _updateHighWaterMark();
 
         // Merge users from cloud — add new users, update existing (keep local passwords if user exists)
         if(backupData.users&&Array.isArray(backupData.users)){
@@ -4522,30 +4566,13 @@ async function performAutoSyncOnLogin(){
       users=localUsers;
       saveUsers(localUsers);
     }
-    // Merge payroll data — additive only, never replace local records
+    // Merge payroll data from cloud (strictly additive + non-empty-field updates)
     if(backup.data){
-      // Employees: add cloud employees not already in local (case-insensitive name match)
-      if(Array.isArray(backup.data.employees)){
-        var localNameSet=DATA.employees.map(function(e){return e.name.trim().toLowerCase();});
-        backup.data.employees.forEach(function(ce){
-          if(ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
-            DATA.employees.push(ce);
-            localNameSet.push(ce.name.trim().toLowerCase());
-          }
-        });
-      }
-      // Payroll runs: add cloud runs whose date doesn't exist locally
-      if(Array.isArray(backup.data.payrollRuns)){
-        var localDates=DATA.payrollRuns.map(function(r){return r.date;});
-        backup.data.payrollRuns.forEach(function(cr){
-          if(!localDates.includes(cr.date)){
-            if(!Array.isArray(cr.results))cr.results=[];
-            DATA.payrollRuns.push(cr);
-            localDates.push(cr.date);
-          }
-        });
-      }
+      var _syncStats=_mergeDataIntoLocal(backup.data);
+      DATA.payrollRuns.forEach(function(r){if(!Array.isArray(r.results))r.results=[];});
       saveStore();
+      _cloudMergeCompleted=true;
+      console.log('[SyncOnLogin] Merge summary:',_syncStats);
     }
     if(backup.permissions&&Array.isArray(backup.permissions)){
       var localPerms=loadPermissions();
@@ -4975,30 +5002,9 @@ async function autoSyncCredentialsOnLoad(){
     // inside the users check, so a cloud backup without users (or with an empty
     // users array) would skip the entire employee/payroll merge.
     if(backupData.data){
-      var mergedEmps=0,mergedRuns=0;
-      if(Array.isArray(backupData.data.employees)){
-        if(!Array.isArray(DATA.employees))DATA.employees=[];
-        var localNameSet=DATA.employees.map(function(e){return (e.name||'').trim().toLowerCase();});
-        backupData.data.employees.forEach(function(ce){
-          if(ce&&ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
-            DATA.employees.push(ce);
-            localNameSet.push(ce.name.trim().toLowerCase());
-            mergedEmps++;
-          }
-        });
-      }
-      if(Array.isArray(backupData.data.payrollRuns)){
-        if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
-        var localDates=DATA.payrollRuns.map(function(r){return r.date;});
-        backupData.data.payrollRuns.forEach(function(cr){
-          if(cr&&!localDates.includes(cr.date)){
-            if(!Array.isArray(cr.results))cr.results=[];
-            DATA.payrollRuns.push(cr);
-            localDates.push(cr.date);
-            mergedRuns++;
-          }
-        });
-      }
+      var _autoMergeStats=_mergeDataIntoLocal(backupData.data);
+      var mergedEmps=_autoMergeStats.addedEmployees;
+      var mergedRuns=_autoMergeStats.addedRuns;
       // Preserve cloud settings by merging into local settings (cloud wins for
       // keys it explicitly defines, but we never lose local-only keys).
       if(backupData.data.settings&&typeof backupData.data.settings==='object'){
