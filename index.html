@@ -1161,11 +1161,30 @@ tr:hover td{background:rgba(59,130,246,.04)}
 // ==================== DATA STORE ====================
 const STORAGE_KEY = 'cestisPayroll';
 const BACKUP_STORAGE_KEY = 'cestisPayroll_backup';
+const HIGH_WATER_KEY = 'cestisDataHighWater';
 let DATA = loadStore();
+// Seed the high-water mark from whatever was in localStorage at boot. If this
+// device already has real data stored locally, any future attempt to save an
+// empty DATA will be blocked by _isSuspiciousDataLoss().
+try{
+  var _bootE=Array.isArray(DATA.employees)?DATA.employees.length:0;
+  var _bootP=Array.isArray(DATA.payrollRuns)?DATA.payrollRuns.length:0;
+  if(_bootE>0||_bootP>0){
+    var _bootHw={employees:0,payrollRuns:0};
+    try{var _bootStored=localStorage.getItem(HIGH_WATER_KEY);if(_bootStored)_bootHw=JSON.parse(_bootStored)||_bootHw;}catch(e){}
+    if(_bootE>(_bootHw.employees||0))_bootHw.employees=_bootE;
+    if(_bootP>(_bootHw.payrollRuns||0))_bootHw.payrollRuns=_bootP;
+    localStorage.setItem(HIGH_WATER_KEY,JSON.stringify(_bootHw));
+  }
+}catch(e){}
 let _dataDirty = false;
 let _autoSaveInterval = null;
 let _autoCloudSaveInterval = null;
 let _lastSaveHash = '';
+// Gate: cloud autosave will not run until the initial cloud merge has completed.
+// This prevents a fresh device (empty localStorage) from pushing blank DATA up
+// and overwriting real data that other devices have already stored in the cloud.
+let _cloudMergeCompleted = false;
 
 function defaultData(){
   return {
@@ -1235,9 +1254,69 @@ function _mergeFromLocalStorage(){
 
 function markDataDirty(){_dataDirty=true;}
 
+// High-water mark: tracks the largest count of employees/payrollRuns we've ever seen.
+// Used to detect suspicious "data loss" events (e.g. localStorage cleared, new device
+// loaded empty DATA) so we refuse to persist an empty state that would overwrite
+// real data either locally or in the cloud.
+function _getHighWaterMark(){
+  try{
+    var hw=localStorage.getItem(HIGH_WATER_KEY);
+    if(!hw)return {employees:0,payrollRuns:0};
+    var p=JSON.parse(hw);
+    return {employees:p.employees||0,payrollRuns:p.payrollRuns||0};
+  }catch(e){return {employees:0,payrollRuns:0};}
+}
+
+function _updateHighWaterMark(){
+  try{
+    var hw=_getHighWaterMark();
+    var e=Array.isArray(DATA.employees)?DATA.employees.length:0;
+    var p=Array.isArray(DATA.payrollRuns)?DATA.payrollRuns.length:0;
+    var changed=false;
+    if(e>hw.employees){hw.employees=e;changed=true;}
+    if(p>hw.payrollRuns){hw.payrollRuns=p;changed=true;}
+    if(changed)localStorage.setItem(HIGH_WATER_KEY,JSON.stringify(hw));
+  }catch(e){}
+}
+
+// Returns true if in-memory DATA looks dangerously empty compared to what this
+// device has previously seen — i.e. we used to have employees but now have none.
+function _isSuspiciousDataLoss(){
+  var hw=_getHighWaterMark();
+  var e=Array.isArray(DATA.employees)?DATA.employees.length:0;
+  return hw.employees>0 && e===0;
+}
+
 function saveStore(){
+  // Safety: never persist an empty DATA over a previously non-empty state.
+  // This protects against a tab/process reloading DATA from an unexpected
+  // source (or a race) and then clobbering real localStorage contents.
+  if(_isSuspiciousDataLoss()){
+    console.warn('[saveStore] Refusing to persist: DATA is empty but this device has previously stored employees (high-water mark). Attempting recovery.');
+    try{
+      var backup=localStorage.getItem(BACKUP_STORAGE_KEY);
+      if(backup){
+        var parsed=JSON.parse(backup);
+        if(parsed&&Array.isArray(parsed.employees)&&parsed.employees.length>0){
+          DATA=parsed;
+          if(!Array.isArray(DATA.employees))DATA.employees=[];
+          if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
+          console.log('[saveStore] Recovered '+parsed.employees.length+' employees from local backup.');
+        }
+      }
+    }catch(e){console.warn('[saveStore] Backup recovery failed:',e.message);}
+    // If we still look empty after attempted recovery, bail out WITHOUT writing.
+    // Leaving localStorage intact means a subsequent page load / cloud sync can
+    // still restore the real data.
+    if(!Array.isArray(DATA.employees)||DATA.employees.length===0){
+      console.error('[saveStore] Data recovery failed; leaving localStorage untouched to prevent overwrite.');
+      _dataDirty=false;
+      return;
+    }
+  }
   _backupBeforeSave();
   localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));
+  _updateHighWaterMark();
   _lastSaveHash=_dataHash(DATA);
   _dataDirty=false;
 }
@@ -1255,8 +1334,23 @@ function _autoSaveTick(){
   }catch(e){console.warn('[AutoSave] Error:',e.message);}
 }
 
-// Auto cloud save: push to cloud if connected and data changed since last cloud sync
+// Auto cloud save: push to cloud if connected and data changed since last cloud sync.
+// CRITICAL SAFETY: two gates prevent this from wiping cloud data with empty local DATA:
+//   1) _cloudMergeCompleted must be true — i.e. this device has already merged the
+//      latest cloud backup into local DATA, so a push reflects a real, merged state
+//      rather than a fresh device's empty defaults.
+//   2) If DATA looks empty-but-we-previously-had-records (high-water mark), skip
+//      the push entirely. autoSaveUsersToCloud() also peeks at cloud as a last-resort
+//      guard before any destructive overwrite.
 function _autoCloudSaveTick(){
+  if(!_cloudMergeCompleted){
+    console.log('[AutoCloudSave] Skipping: initial cloud merge has not completed yet');
+    return;
+  }
+  if(_isSuspiciousDataLoss()){
+    console.warn('[AutoCloudSave] Skipping: local DATA is empty but high-water mark shows previous data. Refusing to overwrite cloud.');
+    return;
+  }
   if(typeof isCloudConnected!=='undefined'&&isCloudConnected&&typeof googleAccessToken!=='undefined'&&googleAccessToken){
     if(typeof autoSaveUsersToCloud==='function'){
       console.log('[AutoCloudSave] Pushing data to cloud');
@@ -3001,6 +3095,64 @@ async function autoSaveUsersToCloud(){
   setCloudSyncing(true);
   try{
     await findExistingBackupFile();
+
+    // SAFETY PEEK: before overwriting cloud, fetch the existing backup and compare.
+    // If cloud has employee records we don't, merge them in first (additive) so we
+    // never push a smaller/empty state that would erase another device's work.
+    if(cloudFileId){
+      try{
+        var peekResp=await fetch('https://www.googleapis.com/drive/v3/files/'+cloudFileId+'?alt=media',{headers:{'Authorization':'Bearer '+googleAccessToken}});
+        if(peekResp.ok){
+          var cloudBackup=await peekResp.json();
+          var cloudEmps=cloudBackup&&cloudBackup.data&&Array.isArray(cloudBackup.data.employees)?cloudBackup.data.employees:[];
+          var cloudRuns=cloudBackup&&cloudBackup.data&&Array.isArray(cloudBackup.data.payrollRuns)?cloudBackup.data.payrollRuns:[];
+          var localEmpCount=Array.isArray(DATA.employees)?DATA.employees.length:0;
+          if(cloudEmps.length>0&&localEmpCount===0){
+            console.warn('[AutoCloudPush] SAFETY ABORT: cloud has '+cloudEmps.length+' employees but local is empty. Pulling cloud data instead of overwriting.');
+            DATA.employees=cloudEmps.slice();
+            DATA.payrollRuns=cloudRuns.slice();
+            DATA.payrollRuns.forEach(function(r){if(!Array.isArray(r.results))r.results=[];});
+            if(cloudBackup.data.settings)DATA.settings=Object.assign({},DATA.settings||{},cloudBackup.data.settings);
+            saveStore();
+            try{if(typeof renderDashboard==='function')renderDashboard();}catch(e){}
+            setCloudSyncing(false);
+            return;
+          }
+          // Additive merge: bring over any cloud employees/runs that local doesn't have.
+          if(cloudEmps.length>0){
+            var localNameSet=(DATA.employees||[]).map(function(e){return (e.name||'').trim().toLowerCase();});
+            var addedEmps=0;
+            cloudEmps.forEach(function(ce){
+              if(ce&&ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
+                DATA.employees.push(ce);
+                localNameSet.push(ce.name.trim().toLowerCase());
+                addedEmps++;
+              }
+            });
+            if(addedEmps>0)console.log('[AutoCloudPush] Merged '+addedEmps+' cloud employee(s) into local before pushing.');
+          }
+          if(cloudRuns.length>0){
+            var localDates=(DATA.payrollRuns||[]).map(function(r){return r.date;});
+            var addedRuns=0;
+            cloudRuns.forEach(function(cr){
+              if(cr&&!localDates.includes(cr.date)){
+                if(!Array.isArray(cr.results))cr.results=[];
+                DATA.payrollRuns.push(cr);
+                localDates.push(cr.date);
+                addedRuns++;
+              }
+            });
+            if(addedRuns>0)console.log('[AutoCloudPush] Merged '+addedRuns+' cloud payroll run(s) into local before pushing.');
+          }
+          saveStore();
+        }
+      }catch(peekErr){
+        console.warn('[AutoCloudPush] Safety peek failed, aborting push to avoid potential data loss:',peekErr.message);
+        setCloudSyncing(false);
+        return;
+      }
+    }
+
     var backupData={
       version:'1.1',
       timestamp:new Date().toISOString(),
@@ -3266,6 +3418,9 @@ async function syncFromCloud() {
         if (!Array.isArray(DATA.payrollRuns)) DATA.payrollRuns = [];
         DATA.payrollRuns.forEach(function(run){ if (!Array.isArray(run.results)) run.results = []; });
         saveStore();
+        _updateHighWaterMark();
+        // Manual sync from cloud succeeded — cloud autosave is now safe to run.
+        _cloudMergeCompleted = true;
 
         // Restore users and permissions from cloud if available
         if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
@@ -4604,7 +4759,10 @@ function hideFirstTimeSection(){
   if(section)section.style.display='none';
 }
 
-// Auto-sync credentials from cloud on page load (silent, non-blocking)
+// Auto-sync credentials AND payroll data from cloud on page load (silent, non-blocking).
+// Runs on every page load — both login screen and post-login refresh — so that a
+// device which has empty/stale localStorage still pulls the latest data from cloud
+// before its own autosave can push anything up.
 async function autoSyncCredentialsOnLoad(){
   var token=localStorage.getItem('schoolDashboardGoogleAccessToken');
   var expiry=localStorage.getItem('schoolDashboardGoogleTokenExpiry');
@@ -4619,13 +4777,17 @@ async function autoSyncCredentialsOnLoad(){
       updateLoginCloudBanner('error','Cloud session expired. Click <strong>Sync with Google Cloud</strong> below to reconnect.');
       // Show first time section with reconnect messaging
       showFirstTimeSection();
-      document.getElementById('ftTitle').textContent='Reconnect to Google Cloud';
-      document.getElementById('ftDesc').textContent='Your previous session has expired. Sign in with Google again to sync the latest data from the school\'s Drive folder.';
+      var ftTitleEl=document.getElementById('ftTitle');
+      var ftDescEl=document.getElementById('ftDesc');
+      if(ftTitleEl)ftTitleEl.textContent='Reconnect to Google Cloud';
+      if(ftDescEl)ftDescEl.textContent='Your previous session has expired. Sign in with Google again to sync the latest data from the school\'s Drive folder.';
     }else if(!dismissed){
       showFirstTimeSection();
     }else{
       hideFirstTimeSection();
     }
+    // No cloud available — release the autosave gate so users can still work offline.
+    _cloudMergeCompleted=true;
     return;
   }
 
@@ -4645,6 +4807,7 @@ async function autoSyncCredentialsOnLoad(){
       updateLoginCloudBanner('error','No cloud backup found. Ask your admin to save data to cloud.');
       showFirstTimeSection();
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+      _cloudMergeCompleted=true;
       return;
     }
     var resp=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{headers:{'Authorization':'Bearer '+token}});
@@ -4652,9 +4815,15 @@ async function autoSyncCredentialsOnLoad(){
       updateLoginCloudBanner('error','Could not reach cloud backup. Try syncing again.');
       showFirstTimeSection();
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+      // Do NOT release the cloud merge gate: we have a valid token and a known
+      // cloud file, so the backup exists but we couldn't read it. Pushing now
+      // could overwrite real data. Leave the gate closed until a successful read.
       return;
     }
     var backupData=await resp.json();
+
+    // --- USERS MERGE (only when cloud actually has users) ---
+    var usersMerged=false;
     if(backupData.users&&Array.isArray(backupData.users)&&backupData.users.length>0){
       var localUsers=loadUsers();
       var added=0;
@@ -4665,50 +4834,76 @@ async function autoSyncCredentialsOnLoad(){
       });
       if(!localUsers.some(function(u){return u.username.toLowerCase()==='cestisadmin';}))localUsers.push(getDefaultUsers()[0]);
       saveUsers(localUsers);
-      // Merge payroll data — additive only, never replace local records
-      if(backupData.data){
-        // Employees: add cloud employees not already in local (case-insensitive name match)
-        if(Array.isArray(backupData.data.employees)){
-          var localNameSet=DATA.employees.map(function(e){return e.name.trim().toLowerCase();});
-          backupData.data.employees.forEach(function(ce){
-            if(ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
-              DATA.employees.push(ce);
-              localNameSet.push(ce.name.trim().toLowerCase());
-            }
-          });
-        }
-        // Payroll runs: add cloud runs whose date doesn't exist locally
-        if(Array.isArray(backupData.data.payrollRuns)){
-          var localDates=DATA.payrollRuns.map(function(r){return r.date;});
-          backupData.data.payrollRuns.forEach(function(cr){
-            if(!localDates.includes(cr.date)){
-              if(!Array.isArray(cr.results))cr.results=[];
-              DATA.payrollRuns.push(cr);
-              localDates.push(cr.date);
-            }
-          });
-        }
-        saveStore();
-      }
-      if(backupData.permissions&&Array.isArray(backupData.permissions)){
-        var localPerms=loadPermissions();
-        backupData.permissions.forEach(function(cp){
-          if(!localPerms.some(function(p){return p.id===cp.id;}))localPerms.push(cp);
-        });
-        savePermissions(localPerms);
-      }
+      usersMerged=true;
+      console.log('[AutoSync] Users synced from cloud:',localUsers.length,'user(s),',added,'new');
       updateLoginCloudBanner('synced','Cloud synced — '+formatSyncedUserList(localUsers));
       if(statusEl){statusEl.style.color='var(--green)';statusEl.textContent='Cloud synced — '+localUsers.length+' account(s) ready';}
-      console.log('[AutoSync] Credentials synced from cloud:',localUsers.length,'users,',added,'new');
-    }else{
+    }
+
+    // --- PAYROLL DATA MERGE — runs regardless of whether users were present in cloud ---
+    // This is the critical fix for data loss: previously this block was nested
+    // inside the users check, so a cloud backup without users (or with an empty
+    // users array) would skip the entire employee/payroll merge.
+    if(backupData.data){
+      var mergedEmps=0,mergedRuns=0;
+      if(Array.isArray(backupData.data.employees)){
+        if(!Array.isArray(DATA.employees))DATA.employees=[];
+        var localNameSet=DATA.employees.map(function(e){return (e.name||'').trim().toLowerCase();});
+        backupData.data.employees.forEach(function(ce){
+          if(ce&&ce.name&&!localNameSet.includes(ce.name.trim().toLowerCase())){
+            DATA.employees.push(ce);
+            localNameSet.push(ce.name.trim().toLowerCase());
+            mergedEmps++;
+          }
+        });
+      }
+      if(Array.isArray(backupData.data.payrollRuns)){
+        if(!Array.isArray(DATA.payrollRuns))DATA.payrollRuns=[];
+        var localDates=DATA.payrollRuns.map(function(r){return r.date;});
+        backupData.data.payrollRuns.forEach(function(cr){
+          if(cr&&!localDates.includes(cr.date)){
+            if(!Array.isArray(cr.results))cr.results=[];
+            DATA.payrollRuns.push(cr);
+            localDates.push(cr.date);
+            mergedRuns++;
+          }
+        });
+      }
+      // Preserve cloud settings by merging into local settings (cloud wins for
+      // keys it explicitly defines, but we never lose local-only keys).
+      if(backupData.data.settings&&typeof backupData.data.settings==='object'){
+        DATA.settings=Object.assign({},DATA.settings||{},backupData.data.settings);
+      }
+      if(mergedEmps>0||mergedRuns>0){
+        console.log('[AutoSync] Payroll data merged from cloud: +'+mergedEmps+' employees, +'+mergedRuns+' payroll run(s)');
+      }
+      saveStore();
+      _updateHighWaterMark();
+      try{if(typeof renderDashboard==='function'&&typeof currentUser!=='undefined'&&currentUser)renderDashboard();}catch(e){}
+    }
+
+    // --- PERMISSIONS MERGE ---
+    if(backupData.permissions&&Array.isArray(backupData.permissions)){
+      var localPerms=loadPermissions();
+      backupData.permissions.forEach(function(cp){
+        if(!localPerms.some(function(p){return p.id===cp.id;}))localPerms.push(cp);
+      });
+      savePermissions(localPerms);
+    }
+
+    if(!usersMerged){
       updateLoginCloudBanner('','Cloud connected — no user accounts in backup.');
       if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
     }
+    // Mark cloud merge as complete — cloud autosave is now permitted.
+    _cloudMergeCompleted=true;
   }catch(err){
     console.log('[AutoSync] Silent sync failed:',err.message);
     updateLoginCloudBanner('error','Auto-sync failed. Try syncing again below.');
     showFirstTimeSection();
     if(statusEl){statusEl.textContent='';statusEl.style.display='none';}
+    // Leave the gate closed on hard failure so we never push a possibly-empty
+    // local DATA over a cloud backup we failed to read.
   }
 }
 
@@ -5499,8 +5694,13 @@ document.addEventListener('DOMContentLoaded',function(){
     // Check for existing session (CESTIS-MAIN-DASHBOARD uses sessionStorage)
     if(checkSession()){
       checkAuth();
+      // CRITICAL: even for a returning authenticated session we must still merge
+      // the cloud backup into local DATA before cloud autosave is allowed to run.
+      // Otherwise a device with empty/stale localStorage would push its empty
+      // DATA to cloud on the 60s autosave tick and wipe everyone else's data.
+      autoSyncCredentialsOnLoad();
     }else{
-      // On login screen: auto-sync credentials from cloud if token is available
+      // On login screen: auto-sync credentials and data from cloud if token is available
       autoSyncCredentialsOnLoad();
     }
 
